@@ -33,4 +33,6 @@ public interface IDataContext
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 
     Task<bool> CanConnectAsync(CancellationToken cancellationToken = default);
+
+    DbSet<TEntity> Set<TEntity>() where TEntity : class;
 }

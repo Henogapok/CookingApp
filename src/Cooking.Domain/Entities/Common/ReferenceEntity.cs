@@ -6,5 +6,10 @@ namespace Cooking.Domain.Entities.Common;
 public abstract class ReferenceEntity
 {
     public Guid Id { get; set; }
-    public required string Name { get; set; }
+
+    // Не `required`: справочники создаются через generic `new TEntity { Name = ... }`
+    // (см. Cooking.Application.ReferenceData), а `new()`-ограничение в C# 11+ несовместимо
+    // с required-членами, даже когда они всегда заполняются через object initializer.
+    // Обязательность на уровне БД — через EF-конфигурацию (ReferenceEntityConfiguration.IsRequired()).
+    public string Name { get; set; } = string.Empty;
 }
