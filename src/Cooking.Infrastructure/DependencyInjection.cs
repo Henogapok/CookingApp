@@ -1,5 +1,8 @@
 using Cooking.Application.Common.Interfaces;
+using Cooking.Application.MeasurementUnits;
+using Cooking.Application.ReferenceData;
 using Cooking.Infrastructure.Persistence;
+using Cooking.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +18,9 @@ public static class DependencyInjection
 
         services.AddDbContext<CookingDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IDataContext>(sp => sp.GetRequiredService<CookingDbContext>());
+
+        services.AddScoped<IReferenceDataRepositoryService, ReferenceDataRepositoryService>();
+        services.AddScoped<IMeasurementUnitRepositoryService, MeasurementUnitRepositoryService>();
 
         return services;
     }
