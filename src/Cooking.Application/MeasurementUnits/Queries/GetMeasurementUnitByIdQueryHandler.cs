@@ -1,19 +1,11 @@
-using Cooking.Application.Common.Errors;
-using Cooking.Application.Common.Interfaces;
 using FluentResults;
 using MediatR;
 
 namespace Cooking.Application.MeasurementUnits.Queries;
 
-public class GetMeasurementUnitByIdQueryHandler(IDataContext dataContext)
+public class GetMeasurementUnitByIdQueryHandler(IMeasurementUnitRepositoryService repository)
     : IRequestHandler<GetMeasurementUnitByIdQuery, Result<MeasurementUnitDto>>
 {
-    public async Task<Result<MeasurementUnitDto>> Handle(GetMeasurementUnitByIdQuery request, CancellationToken cancellationToken)
-    {
-        var unit = await dataContext.MeasurementUnits.FindAsync([request.Id], cancellationToken);
-
-        return unit is null
-            ? Result.Fail(new AppError($"MeasurementUnit with id '{request.Id}' was not found.", ErrorCode.NotFound))
-            : Result.Ok(new MeasurementUnitDto(unit.Id, unit.Name, unit.Abbreviation));
-    }
+    public Task<Result<MeasurementUnitDto>> Handle(GetMeasurementUnitByIdQuery request, CancellationToken cancellationToken) =>
+        repository.GetByIdAsync(request.Id, cancellationToken);
 }
