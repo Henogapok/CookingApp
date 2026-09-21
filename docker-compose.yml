@@ -28,6 +28,8 @@ services:
       - "5341:80"  # UI + log ingestion
     environment:
       ACCEPT_EULA: "Y"
+      # Личный проект на два человека, порт наружу не смотрит — без авторизации в Seq UI.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "True"
     volumes:
       - seq_data:/data
 
