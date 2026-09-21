@@ -21,5 +21,18 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
+  seq:
+    image: datalust/seq:latest
+    container_name: recipe-logs
+    ports:
+      - "5341:80"  # UI + log ingestion
+    environment:
+      ACCEPT_EULA: "Y"
+      # Личный проект на два человека, порт наружу не смотрит — без авторизации в Seq UI.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "True"
+    volumes:
+      - seq_data:/data
+
 volumes:
   pg_data:
+  seq_data:
