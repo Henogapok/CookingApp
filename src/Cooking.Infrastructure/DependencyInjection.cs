@@ -1,4 +1,5 @@
 using Cooking.Application.Common.Interfaces;
+using Cooking.Application.Ingredients;
 using Cooking.Application.MeasurementUnits;
 using Cooking.Application.ReferenceData;
 using Cooking.Infrastructure.Persistence;
@@ -21,6 +22,7 @@ public static class DependencyInjection
 
         services.AddScoped<IReferenceDataRepositoryService, ReferenceDataRepositoryService>();
         services.AddScoped<IMeasurementUnitRepositoryService, MeasurementUnitRepositoryService>();
+        services.AddScoped<IIngredientCatalogRepositoryService, IngredientCatalogRepositoryService>();
 
         return services;
     }
