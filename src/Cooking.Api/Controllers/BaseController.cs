@@ -21,13 +21,20 @@ public abstract class BaseController : ControllerBase
 
     private IActionResult HandleFailure(ResultBase result)
     {
-        var statusCode = result.Errors.Any(e => e is NotFoundError)
-            ? StatusCodes.Status404NotFound
-            : StatusCodes.Status400BadRequest;
+        var code = result.Errors.OfType<AppError>().FirstOrDefault()?.Code;
+
+        var (title, statusCode) = code switch
+        {
+            ErrorCode.NotFound => ("Не удалось найти информацию", StatusCodes.Status404NotFound),
+            ErrorCode.Validation => ("Невалидный параметр", StatusCodes.Status400BadRequest),
+            ErrorCode.LogicConflict => ("Конфликт логической зависимости", StatusCodes.Status409Conflict),
+            _ => ("Необработанное исключение", StatusCodes.Status500InternalServerError)
+        };
 
         var problemDetails = ProblemDetailsFactory.CreateProblemDetails(
             HttpContext,
             statusCode: statusCode,
+            title: title,
             detail: string.Join(" ", result.Errors.Select(e => e.Message)));
 
         problemDetails.Extensions["errors"] = result.Errors.Select(e => e.Message).ToArray();

@@ -36,7 +36,7 @@ public class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TReq
 
         var result = new TResponse();
         foreach (var failure in failures)
-            result.Reasons.Add(new ValidationError(failure.ErrorMessage));
+            result.Reasons.Add(new AppError(failure.ErrorMessage, ErrorCode.Validation));
 
         return result;
     }
