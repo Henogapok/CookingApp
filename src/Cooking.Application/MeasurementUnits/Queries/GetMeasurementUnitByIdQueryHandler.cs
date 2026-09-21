@@ -13,7 +13,7 @@ public class GetMeasurementUnitByIdQueryHandler(IDataContext dataContext)
         var unit = await dataContext.MeasurementUnits.FindAsync([request.Id], cancellationToken);
 
         return unit is null
-            ? Result.Fail(new NotFoundError($"MeasurementUnit with id '{request.Id}' was not found."))
+            ? Result.Fail(new AppError($"MeasurementUnit with id '{request.Id}' was not found.", ErrorCode.NotFound))
             : Result.Ok(new MeasurementUnitDto(unit.Id, unit.Name, unit.Abbreviation));
     }
 }
