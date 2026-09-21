@@ -15,7 +15,7 @@ public class UpdateReferenceEntityCommandHandler<TEntity>(IDataContext dataConte
         var entity = await dataContext.Set<TEntity>().FindAsync([request.Id], cancellationToken);
 
         if (entity is null)
-            return Result.Fail(new NotFoundError($"{typeof(TEntity).Name} with id '{request.Id}' was not found."));
+            return Result.Fail(new AppError($"{typeof(TEntity).Name} with id '{request.Id}' was not found.", ErrorCode.NotFound));
 
         entity.Name = request.Name;
         await dataContext.SaveChangesAsync(cancellationToken);

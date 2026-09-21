@@ -13,7 +13,7 @@ public class UpdateMeasurementUnitCommandHandler(IDataContext dataContext)
         var unit = await dataContext.MeasurementUnits.FindAsync([request.Id], cancellationToken);
 
         if (unit is null)
-            return Result.Fail(new NotFoundError($"MeasurementUnit with id '{request.Id}' was not found."));
+            return Result.Fail(new AppError($"MeasurementUnit with id '{request.Id}' was not found.", ErrorCode.NotFound));
 
         unit.Name = request.Name;
         unit.Abbreviation = request.Abbreviation;

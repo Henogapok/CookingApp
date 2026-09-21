@@ -1,3 +1,4 @@
+using Cooking.Api.ExceptionHandling;
 using Cooking.Application;
 using Cooking.Infrastructure;
 
@@ -8,8 +9,12 @@ builder.Services.AddApplication();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {

@@ -13,7 +13,7 @@ public class DeleteMeasurementUnitCommandHandler(IDataContext dataContext)
         var unit = await dataContext.MeasurementUnits.FindAsync([request.Id], cancellationToken);
 
         if (unit is null)
-            return Result.Fail(new NotFoundError($"MeasurementUnit with id '{request.Id}' was not found."));
+            return Result.Fail(new AppError($"MeasurementUnit with id '{request.Id}' was not found.", ErrorCode.NotFound));
 
         dataContext.MeasurementUnits.Remove(unit);
         await dataContext.SaveChangesAsync(cancellationToken);

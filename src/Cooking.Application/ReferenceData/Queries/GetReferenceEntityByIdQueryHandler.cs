@@ -17,7 +17,7 @@ public class GetReferenceEntityByIdQueryHandler<TEntity>(IDataContext dataContex
         var entity = await dataContext.Set<TEntity>().FindAsync([request.Id], cancellationToken);
 
         return entity is null
-            ? Result.Fail(new NotFoundError($"{typeof(TEntity).Name} with id '{request.Id}' was not found."))
+            ? Result.Fail(new AppError($"{typeof(TEntity).Name} with id '{request.Id}' was not found.", ErrorCode.NotFound))
             : Result.Ok(new ReferenceEntityDto(entity.Id, entity.Name));
     }
 }
