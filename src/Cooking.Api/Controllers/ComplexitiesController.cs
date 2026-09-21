@@ -1,7 +1,6 @@
 using Cooking.Api.Contracts;
-using Cooking.Application.ReferenceData.Commands;
-using Cooking.Application.ReferenceData.Queries;
-using Cooking.Domain.Entities.Recipes;
+using Cooking.Application.ReferenceData.Complexities.Commands;
+using Cooking.Application.ReferenceData.Complexities.Queries;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cooking.Api.Controllers;
@@ -10,16 +9,16 @@ public class ComplexitiesController : BaseController
 {
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new GetReferenceEntitiesQuery<Complexity>(), cancellationToken));
+        => HandleResult(await Mediator.Send(new GetComplexitiesQuery(), cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new GetReferenceEntityByIdQuery<Complexity>(id), cancellationToken));
+        => HandleResult(await Mediator.Send(new GetComplexityByIdQuery(id), cancellationToken));
 
     [HttpPost]
     public async Task<IActionResult> Create(ReferenceEntityRequest request, CancellationToken cancellationToken)
     {
-        var result = await Mediator.Send(new CreateReferenceEntityCommand<Complexity>(request.Name), cancellationToken);
+        var result = await Mediator.Send(new CreateComplexityCommand(request.Name), cancellationToken);
 
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetById), new { id = result.Value }, result.Value)
@@ -28,9 +27,9 @@ public class ComplexitiesController : BaseController
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, ReferenceEntityRequest request, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new UpdateReferenceEntityCommand<Complexity>(id, request.Name), cancellationToken));
+        => HandleResult(await Mediator.Send(new UpdateComplexityCommand(id, request.Name), cancellationToken));
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new DeleteReferenceEntityCommand<Complexity>(id), cancellationToken));
+        => HandleResult(await Mediator.Send(new DeleteComplexityCommand(id), cancellationToken));
 }
