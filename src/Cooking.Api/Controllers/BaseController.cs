@@ -19,8 +19,19 @@ public abstract class BaseController : ControllerBase
     protected IActionResult HandleResult(Result result) =>
         result.IsSuccess ? NoContent() : HandleFailure(result);
 
-    private IActionResult HandleFailure(ResultBase result) =>
-        result.Errors.Any(e => e is NotFoundError)
-            ? NotFound(new { errors = result.Errors.Select(e => e.Message) })
-            : BadRequest(new { errors = result.Errors.Select(e => e.Message) });
+    private IActionResult HandleFailure(ResultBase result)
+    {
+        var statusCode = result.Errors.Any(e => e is NotFoundError)
+            ? StatusCodes.Status404NotFound
+            : StatusCodes.Status400BadRequest;
+
+        var problemDetails = ProblemDetailsFactory.CreateProblemDetails(
+            HttpContext,
+            statusCode: statusCode,
+            detail: string.Join(" ", result.Errors.Select(e => e.Message)));
+
+        problemDetails.Extensions["errors"] = result.Errors.Select(e => e.Message).ToArray();
+
+        return new ObjectResult(problemDetails) { StatusCode = statusCode };
+    }
 }
