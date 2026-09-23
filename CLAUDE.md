@@ -356,3 +356,6 @@ Postgres (`recipe-db`, порт 5432) и RabbitMQ (`recipe-mq`, AMQP 5672 / mana
 - VPS: Hetzner CX23 (2 vCPU, 4GB RAM, 40GB SSD, ~€4/мес)
 - Всё в Docker на VPS
 - Whisper API + LLM API: ~$2-4/мес при 20-30 рецептах
+
+
+ИДея: Добавить Функционал сканирования чека. Считать КБЖУ из чека + стоимость
