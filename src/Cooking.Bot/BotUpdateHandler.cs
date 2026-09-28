@@ -25,7 +25,6 @@ public class BotUpdateHandler(
     BotInfoProvider botInfo,
     ILogger<BotUpdateHandler> logger)
 {
-    private const string StartCommand = "/start";
     private const string GenericErrorText = "Что-то пошло не так 😔 Попробуй ещё раз чуть позже.";
 
     public async Task HandleAsync(Update update, CancellationToken cancellationToken)
@@ -53,11 +52,20 @@ public class BotUpdateHandler(
             return;
         }
 
-        if (text.StartsWith(StartCommand, StringComparison.Ordinal))
+        if (BotCommandNames.MatchArguments(text, BotCommandNames.Search) is { } searchQuery)
+        {
+            // "/search" без аргументов (например, из меню команд) — как кнопка «Найти рецепт».
+            if (searchQuery.Length > 0)
+                await SearchRecipesAsync(chatId, user, searchQuery, cancellationToken);
+            else
+                await ShowRecipesAsync(chatId, user, cancellationToken);
+
+            return;
+        }
+
+        if (BotCommandNames.MatchArguments(text, BotCommandNames.Start) is { } payload)
         {
             // Deep link t.me/<bot>?start=<code> приходит как сообщение "/start <code>".
-            var payload = text[StartCommand.Length..].Trim();
-
             if (payload.Length > 0)
                 await JoinByInviteAsync(chatId, user, payload, cancellationToken);
             else

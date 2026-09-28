@@ -1,3 +1,4 @@
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Cooking.Bot;
@@ -22,6 +23,43 @@ public static class BotCallbacks
     public const string RecipePrefix = "recipe:";
 
     public static string Recipe(Guid recipeId) => RecipePrefix + recipeId;
+}
+
+/// <summary>Команды бота; список уходит в Telegram (меню «/» в клиенте) при старте.</summary>
+public static class BotCommandNames
+{
+    public const string Start = "/start";
+    public const string Search = "/search";
+
+    public static readonly BotCommand[] All =
+    [
+        new() { Command = "start", Description = "Главное меню" },
+        new() { Command = "search", Description = "Найти рецепт: /search курица" },
+    ];
+
+    /// <summary>
+    /// Если text — это команда command (в т.ч. в форме "/search@BotName"), возвращает её аргументы
+    /// (пустая строка — без аргументов); иначе null.
+    /// </summary>
+    public static string? MatchArguments(string text, string command)
+    {
+        if (!text.StartsWith(command, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var rest = text[command.Length..];
+
+        if (rest.StartsWith('@'))
+        {
+            var spaceIndex = rest.IndexOf(' ');
+            rest = spaceIndex < 0 ? "" : rest[spaceIndex..];
+        }
+        else if (rest.Length > 0 && !char.IsWhiteSpace(rest[0]))
+        {
+            return null; // "/searching" — другая команда
+        }
+
+        return rest.Trim();
+    }
 }
 
 public static class BotTexts

@@ -23,6 +23,7 @@ public class BotPollingService(
         {
             // Если у бота остался webhook (например, токен раньше использовался в проде), getUpdates не работает.
             await bot.DeleteWebhook(cancellationToken: stoppingToken);
+            await bot.SetMyCommands(BotCommandNames.All, cancellationToken: stoppingToken);
             var me = await bot.GetMe(stoppingToken);
             logger.LogInformation("Telegram bot @{BotUsername} started in polling mode", me.Username);
 

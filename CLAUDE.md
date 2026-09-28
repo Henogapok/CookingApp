@@ -367,6 +367,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Для разработки — отдельный dev-бот (Telegram не даёт одному боту одновременно polling и webhook).
 - Токен **никогда** не коммитится: локально `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Api`, в проде — переменные окружения `Telegram__BotToken`, `Telegram__UseWebhook=true`, `Telegram__WebhookUrl`, `Telegram__WebhookSecretToken`.
 - Без токена Api стартует без бота (REST работает).
+- Бот не хранит состояние диалога. Поиск рецептов: `/search <запрос>`, либо кнопка «Найти рецепт» / `/search` без аргументов → список + сообщение `BotTexts.SearchPrompt` с ForceReply, и ответ на него = запрос. Обычный текст без команды поиском не считается — он зарезервирован под LLM-парсинг рецептов. Список команд (`BotCommandNames.All`) регистрируется в Telegram при старте.
 
 ## Docker (локальная разработка)
 

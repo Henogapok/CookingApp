@@ -26,6 +26,8 @@ public class BotWebhookRegistrationService(
             secretToken: settings.WebhookSecretToken,
             cancellationToken: cancellationToken);
 
+        await bot.SetMyCommands(BotCommandNames.All, cancellationToken: cancellationToken);
+
         logger.LogInformation("Telegram webhook registered at {WebhookUrl}", settings.WebhookUrl);
     }
 
