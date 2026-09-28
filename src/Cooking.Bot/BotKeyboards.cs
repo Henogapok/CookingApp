@@ -17,6 +17,20 @@ public static class BotCallbacks
     public const string FamilyLeave = "family:leave";
     public const string FamilyLeaveConfirm = "family:leave:yes";
     public const string FamilyLeaveCancel = "family:leave:no";
+
+    /// <summary>Префикс кнопки рецепта: "recipe:{guid}" — 43 байта, в лимит callback_data (64) влезает.</summary>
+    public const string RecipePrefix = "recipe:";
+
+    public static string Recipe(Guid recipeId) => RecipePrefix + recipeId;
+}
+
+public static class BotTexts
+{
+    /// <summary>
+    /// Текст приглашения к поиску. Ответ пользователя на это сообщение (reply) — поисковый запрос:
+    /// так бот не хранит состояние диалога, а обычный текст остаётся свободным под парсинг рецептов.
+    /// </summary>
+    public const string SearchPrompt = "🔍 Напиши часть названия — я поищу среди твоих и семейных рецептов.";
 }
 
 public static class BotKeyboards
@@ -44,6 +58,14 @@ public static class BotKeyboards
             InlineKeyboardButton.WithCallbackData("➕ Пригласить", BotCallbacks.FamilyInvite),
             InlineKeyboardButton.WithCallbackData("🚪 Выйти", BotCallbacks.FamilyLeave),
         });
+
+    /// <summary>По кнопке на рецепт, каждая в своей строке — длинные названия так читаются лучше.</summary>
+    public static InlineKeyboardMarkup RecipeList(IEnumerable<(Guid Id, string Label)> recipes) =>
+        new(recipes.Select(r => new[] { InlineKeyboardButton.WithCallbackData(r.Label, BotCallbacks.Recipe(r.Id)) }));
+
+    /// <summary>Открывает поле ответа на сообщение с SearchPrompt.</summary>
+    public static ForceReplyMarkup SearchReply() =>
+        new() { InputFieldPlaceholder = "например, курица" };
 
     public static InlineKeyboardMarkup ConfirmLeave() =>
         new(new[]

@@ -1,6 +1,8 @@
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Families.Commands;
 using Cooking.Application.Families.Queries;
+using Cooking.Application.Recipes;
+using Cooking.Application.Recipes.Queries;
 using Cooking.Application.Users;
 using Cooking.Application.Users.Commands;
 using FluentResults;
@@ -31,7 +33,7 @@ public class BotUpdateHandler(
         switch (update)
         {
             case { Message: { Text: { } text, From: { } from, Chat.Type: ChatType.Private } message }:
-                await HandleMessageAsync(message.Chat.Id, from, text.Trim(), cancellationToken);
+                await HandleMessageAsync(message.Chat.Id, from, text.Trim(), message.ReplyToMessage, cancellationToken);
                 break;
 
             case { CallbackQuery: { Data: { } data, From: { } from } callback }:
@@ -40,7 +42,7 @@ public class BotUpdateHandler(
         }
     }
 
-    private async Task HandleMessageAsync(long chatId, TelegramUser from, string text, CancellationToken cancellationToken)
+    private async Task HandleMessageAsync(long chatId, TelegramUser from, string text, Message? replyTo, CancellationToken cancellationToken)
     {
         // Регистрация идемпотентна, поэтому вызываем её на каждое сообщение: так бот работает, даже если
         // пользователь не нажимал /start (например, после очистки БД), а имя в профиле остаётся актуальным.
@@ -67,9 +69,17 @@ public class BotUpdateHandler(
         switch (text)
         {
             case BotButtons.CreateRecipe:
-            case BotButtons.FindRecipe:
-                await bot.SendMessage(chatId, "Скоро будет 🙂 Сейчас я учусь работать с рецептами.",
+                await bot.SendMessage(chatId, "Скоро будет 🙂 Сейчас я учусь разбирать рецепты из текста.",
                     replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
+                break;
+
+            case BotButtons.FindRecipe:
+                await ShowRecipesAsync(chatId, user, cancellationToken);
+                break;
+
+            // Кнопки меню проверяются раньше: нажатие кнопки при открытом поле ответа тоже может прийти как reply.
+            case var query when replyTo is { From.IsBot: true, Text: BotTexts.SearchPrompt }:
+                await SearchRecipesAsync(chatId, user, query, cancellationToken);
                 break;
 
             case BotButtons.CreateFamily:
@@ -127,7 +137,99 @@ public class BotUpdateHandler(
                 await bot.EditMessageText(chatId, callback.Message.Id, "Хорошо, остаёмся 🙂",
                     cancellationToken: cancellationToken);
                 break;
+
+            case var _ when data.StartsWith(BotCallbacks.RecipePrefix, StringComparison.Ordinal)
+                            && Guid.TryParse(data[BotCallbacks.RecipePrefix.Length..], out var recipeId):
+                await ShowRecipeAsync(chatId, user, recipeId, cancellationToken);
+                break;
         }
+    }
+
+    /// <summary>Все доступные рецепты кнопками + приглашение к поиску по названию.</summary>
+    private async Task ShowRecipesAsync(long chatId, UserDto user, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetRecipesQuery(user.Id, null), cancellationToken);
+        if (result.IsFailed)
+        {
+            LogFailure(result, "list recipes", user);
+            await bot.SendMessage(chatId, GenericErrorText, cancellationToken: cancellationToken);
+            return;
+        }
+
+        if (result.Value.Count == 0)
+        {
+            await bot.SendMessage(chatId, "Рецептов пока нет 📭 Скоро их можно будет добавлять прямо здесь.",
+                replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
+            return;
+        }
+
+        await SendRecipeListAsync(chatId, user, result.Value, $"📚 Рецепты ({result.Value.Count}):", cancellationToken);
+        await bot.SendMessage(chatId, BotTexts.SearchPrompt,
+            replyMarkup: BotKeyboards.SearchReply(), cancellationToken: cancellationToken);
+    }
+
+    private async Task SearchRecipesAsync(long chatId, UserDto user, string query, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetRecipesQuery(user.Id, query), cancellationToken);
+        if (result.IsFailed)
+        {
+            // Validation — слишком длинный запрос; остальное — неожиданная ошибка.
+            if (ErrorCodeOf(result) != ErrorCode.Validation)
+                LogFailure(result, "search recipes", user);
+
+            await bot.SendMessage(chatId,
+                ErrorCodeOf(result) == ErrorCode.Validation ? "Слишком длинный запрос — попробуй покороче." : GenericErrorText,
+                replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
+            return;
+        }
+
+        if (result.Value.Count == 0)
+        {
+            await bot.SendMessage(chatId, $"По запросу «{query}» ничего не нашёл 🤷",
+                replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
+            return;
+        }
+
+        await SendRecipeListAsync(chatId, user, result.Value, $"🔍 Нашёл ({result.Value.Count}):", cancellationToken);
+    }
+
+    private async Task SendRecipeListAsync(
+        long chatId, UserDto user, List<RecipeSummaryDto> recipes, string title, CancellationToken cancellationToken)
+    {
+        // Длинный столбец кнопок неудобен — показываем первые, остальное находится поиском.
+        const int maxButtons = 20;
+
+        var text = recipes.Count > maxButtons
+            ? $"{title}\nПоказываю первые {maxButtons} — уточни поиск, чтобы найти остальные."
+            : title;
+
+        var buttons = recipes
+            .Take(maxButtons)
+            .Select(r => (r.Id, BotRecipeFormatter.FormatListButton(r, user.Id)));
+
+        await bot.SendMessage(chatId, text,
+            replyMarkup: BotKeyboards.RecipeList(buttons), cancellationToken: cancellationToken);
+    }
+
+    private async Task ShowRecipeAsync(long chatId, UserDto user, Guid recipeId, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new GetRecipeByIdQuery(recipeId, user.Id), cancellationToken);
+        if (result.IsFailed)
+        {
+            // NotFound — рецепт удалили или автор ушёл из семьи, пока висела старая кнопка.
+            if (ErrorCodeOf(result) != ErrorCode.NotFound)
+                LogFailure(result, "get recipe", user);
+
+            await bot.SendMessage(chatId,
+                ErrorCodeOf(result) == ErrorCode.NotFound ? "Этот рецепт больше недоступен 🤷" : GenericErrorText,
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        await bot.SendMessage(chatId, BotRecipeFormatter.FormatCard(result.Value, user.Id),
+            parseMode: ParseMode.Html,
+            linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true },
+            cancellationToken: cancellationToken);
     }
 
     private async Task SendGreetingAsync(long chatId, UserDto user, CancellationToken cancellationToken)
