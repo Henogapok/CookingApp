@@ -354,6 +354,15 @@ erDiagram
 - Обработка Instagram-видео асинхронная через RabbitMQ: бот кидает сообщение → Worker скачивает, транскрибирует, парсит → отправляет результат обратно
 - BaseEntity (Id, CreatedAt, UpdatedAt) — базовый класс для всех основных entities
 
+## Telegram-бот
+
+- Код в `src/Cooking.Api/Bot/`. Вся логика — `BotUpdateHandler` (scoped, работает через MediatR); транспорт выбирается настройкой `Telegram:UseWebhook`:
+  - `false` (разработка) — `BotPollingService`, long polling, публичный адрес не нужен;
+  - `true` (прод) — `TelegramWebhookController` (`POST /api/telegram/webhook`, проверяет заголовок `X-Telegram-Bot-Api-Secret-Token`) + `BotWebhookRegistrationService` регистрирует webhook при старте.
+- Для разработки — отдельный dev-бот (Telegram не даёт одному боту одновременно polling и webhook).
+- Токен **никогда** не коммитится: локально `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Api`, в проде — переменные окружения `Telegram__BotToken`, `Telegram__UseWebhook=true`, `Telegram__WebhookUrl`, `Telegram__WebhookSecretToken`.
+- Без токена Api стартует без бота (REST работает).
+
 ## Docker (локальная разработка)
 
 Postgres (`recipe-db`, порт 5432) и RabbitMQ (`recipe-mq`, AMQP 5672 / management UI 15672) — см. `docker-compose.yml` в корне.

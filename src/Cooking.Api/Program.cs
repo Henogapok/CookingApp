@@ -1,3 +1,4 @@
+using Cooking.Api.Bot;
 using Cooking.Api.ExceptionHandling;
 using Cooking.Api.Middleware;
 using Cooking.Application;
@@ -12,6 +13,7 @@ builder.Services.AddSerilog(config => config.ReadFrom.Configuration(builder.Conf
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
+builder.Services.AddTelegramBot(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
