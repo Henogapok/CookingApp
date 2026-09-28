@@ -1,5 +1,6 @@
 using Cooking.Domain.Entities.Tags;
 using Cooking.Infrastructure.Persistence.Configurations.Common;
+using Cooking.Infrastructure.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,5 +16,7 @@ public class TagConfiguration : ReferenceEntityConfiguration<Tag>
             .WithMany()
             .HasForeignKey(x => x.TagTypeId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasData(ReferenceDataSeed.Tags);
     }
 }
