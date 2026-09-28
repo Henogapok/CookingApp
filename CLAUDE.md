@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## О проекте
 
-**Cooking** — личный кулинарный помощник. Telegram-бот + PWA для двух пользователей (автор и девушка), объединённых в одну "семью" (Family).
+**Cooking** — личный кулинарный помощник. Telegram-бот + PWA. Изначально для автора и девушки, но бот можно расшарить друзьям: каждый пользователь самостоятельный, а семьи (Family) — группы, внутри которых рецепты общие.
 
 Ключевая ценность: закинул ссылку на Reels/текст рецепта → бот сам достаёт рецепт, структурирует его через LLM и считает КБЖУ/стоимость по каталогу ингредиентов.
 
@@ -81,9 +81,12 @@ Domain ← Application ← Infrastructure
 - Семантический (через LLM)
 
 ### Многопользовательность
-- Сразу на двоих (Family)
+- Много пользователей и много семей. `/start` регистрирует пользователя **без семьи**; дальше он может создать семью или вступить по приглашению
+- Приглашение — одноразовый код с ограниченным сроком (FamilyInvite), передаётся deep link'ом `t.me/<bot>?start=<code>`
+- Пользователь состоит максимум в одной семье. Последний вышедший участник удаляет семью
 - Авторизация через Telegram Login Widget
-- Общее: рецепты, списки покупок
+- Рецепт принадлежит автору (CreatedByUserId), а не семье. В семье видны рецепты всех её участников; при вступлении/выходе ничего не переносится — рецепты уходят вместе с автором
+- Общее в семье: рецепты участников, списки покупок (принадлежат семье)
 - Личное: избранное
 
 ### Справочник ингредиентов
@@ -98,6 +101,8 @@ Domain ← Application ← Infrastructure
 - Поиск по фото продуктов, поиск по ингредиентам
 - История готовок, рекомендации
 - Импорт/экспорт в JSON
+- Видимость рецепта (Private / Family / Public, справочник RecipeVisibility): владение (кто редактирует) ≠ видимость (кто видит)
+- Общий каталог публичных рецептов (база знаний для всех пользователей, с пагинацией), шаринг рецепта ссылкой, «скопировать себе»
 
 ## Схема базы данных (Code First, EF Core + PostgreSQL)
 
@@ -107,8 +112,9 @@ Domain ← Application ← Infrastructure
 
 ```mermaid
 erDiagram
-  Family ||--o{ User : has
-  Family ||--o{ Recipe : owns
+  Family |o--o{ User : has
+  Family ||--o{ FamilyInvite : issues
+  User ||--o{ FamilyInvite : creates
   User ||--o{ Recipe : creates
   Recipe ||--o{ RecipeIngredient : contains
   Recipe ||--o{ RecipeStep : has
@@ -136,14 +142,24 @@ erDiagram
     long TelegramId UK
     string FirstName
     string LastName
+    guid FamilyId FK "nullable"
+    datetime CreatedAt
+    datetime UpdatedAt
+  }
+
+  FamilyInvite {
+    guid Id PK
+    string Code UK
     guid FamilyId FK
+    guid CreatedByUserId FK
+    datetime ExpiresAt
+    datetime UsedAt
     datetime CreatedAt
     datetime UpdatedAt
   }
 
   Recipe {
     guid Id PK
-    guid FamilyId FK
     guid CreatedByUserId FK
     string Title
     string Description
@@ -248,13 +264,21 @@ erDiagram
 - TelegramId (long, unique)
 - FirstName (string)
 - LastName (string?)
-- FamilyId (Guid, FK → Family)
+- FamilyId (Guid?, FK → Family) — null, пока пользователь не состоит в семье
+- CreatedAt, UpdatedAt
+
+#### FamilyInvite
+- Id (Guid, PK)
+- Code (string, unique, ≤ 64 символов `[A-Za-z0-9_-]` — ограничение start-параметра Telegram)
+- FamilyId (Guid, FK → Family, cascade delete)
+- CreatedByUserId (Guid, FK → User)
+- ExpiresAt (DateTime) — срок действия (7 дней)
+- UsedAt (DateTime?) — null, пока приглашение не использовано (одноразовое)
 - CreatedAt, UpdatedAt
 
 #### Recipe
 - Id (Guid, PK)
-- FamilyId (Guid, FK → Family)
-- CreatedByUserId (Guid, FK → User)
+- CreatedByUserId (Guid, FK → User) — владелец рецепта
 - Title (string)
 - Description (string?)
 - SourceUrl (string?)

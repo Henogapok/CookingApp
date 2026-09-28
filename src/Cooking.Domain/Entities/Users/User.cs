@@ -9,8 +9,9 @@ public class User : BaseEntity
     public required string FirstName { get; set; }
     public string? LastName { get; set; }
 
-    public Guid FamilyId { get; set; }
-    public Family Family { get; set; } = null!;
+    /// <summary>null — пользователь пока не состоит ни в одной семье.</summary>
+    public Guid? FamilyId { get; set; }
+    public Family? Family { get; set; }
 
     public ICollection<Recipe> CreatedRecipes { get; set; } = new List<Recipe>();
 }
