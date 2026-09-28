@@ -4,5 +4,6 @@ public enum ErrorCode
 {
     Validation,
     NotFound,
-    LogicConflict
+    LogicConflict,
+    Forbidden
 }

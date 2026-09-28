@@ -20,9 +20,10 @@ public class FamilyConfiguration : BaseEntityConfiguration<Family>
             .HasForeignKey(x => x.FamilyId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasMany(x => x.Recipes)
+        // Пустая семья удаляется при выходе последнего участника — её инвайты уходят вместе с ней.
+        builder.HasMany(x => x.Invites)
             .WithOne(x => x.Family)
             .HasForeignKey(x => x.FamilyId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

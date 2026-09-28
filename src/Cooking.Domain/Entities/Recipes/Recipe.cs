@@ -6,9 +6,7 @@ namespace Cooking.Domain.Entities.Recipes;
 
 public class Recipe : BaseEntity
 {
-    public Guid FamilyId { get; set; }
-    public Family Family { get; set; } = null!;
-
+    /// <summary>Владелец рецепта. Семья автора видит рецепт через его членство в Family.</summary>
     public Guid CreatedByUserId { get; set; }
     public User CreatedByUser { get; set; } = null!;
 
