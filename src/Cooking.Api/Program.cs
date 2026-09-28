@@ -1,4 +1,4 @@
-using Cooking.Api.Bot;
+using Cooking.Bot;
 using Cooking.Api.ExceptionHandling;
 using Cooking.Api.Middleware;
 using Cooking.Application;
@@ -45,5 +45,6 @@ app.UseHttpsRedirection();
 app.UseCors(PwaCorsPolicy);
 
 app.MapControllers();
+app.MapTelegramWebhook();
 
 app.Run();

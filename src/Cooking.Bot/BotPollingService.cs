@@ -1,8 +1,11 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types.Enums;
 
-namespace Cooking.Api.Bot;
+namespace Cooking.Bot;
 
 /// <summary>
 /// Режим разработки: бот сам опрашивает Telegram (long polling), публичный HTTPS-адрес не нужен.

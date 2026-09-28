@@ -5,12 +5,13 @@ using Cooking.Application.Users;
 using Cooking.Application.Users.Commands;
 using FluentResults;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using TelegramUser = Telegram.Bot.Types.User;
 
-namespace Cooking.Api.Bot;
+namespace Cooking.Bot;
 
 /// <summary>
 /// Вся логика бота. Не знает, как пришёл Update — через polling (разработка) или webhook (прод):

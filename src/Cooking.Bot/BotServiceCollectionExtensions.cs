@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
 
-namespace Cooking.Api.Bot;
+namespace Cooking.Bot;
 
 public static class BotServiceCollectionExtensions
 {

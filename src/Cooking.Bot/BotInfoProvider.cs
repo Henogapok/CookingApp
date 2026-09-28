@@ -1,6 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
 
-namespace Cooking.Api.Bot;
+namespace Cooking.Bot;
 
 /// <summary>Кэширует username бота — он нужен для deep link'ов t.me/&lt;username&gt;?start=...</summary>
 public class BotInfoProvider(IServiceScopeFactory scopeFactory)

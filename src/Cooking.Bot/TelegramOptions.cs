@@ -1,4 +1,4 @@
-namespace Cooking.Api.Bot;
+namespace Cooking.Bot;
 
 public class TelegramOptions
 {

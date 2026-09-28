@@ -1,6 +1,6 @@
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace Cooking.Api.Bot;
+namespace Cooking.Bot;
 
 public static class BotButtons
 {
