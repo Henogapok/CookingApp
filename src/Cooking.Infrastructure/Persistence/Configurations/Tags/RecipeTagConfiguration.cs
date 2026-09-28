@@ -10,6 +10,9 @@ public class RecipeTagConfiguration : IEntityTypeConfiguration<RecipeTag>
     {
         builder.HasKey(x => new { x.RecipeId, x.TagId });
 
+        // Согласован с soft delete рецепта (см. RecipeConfiguration).
+        builder.HasQueryFilter(x => x.Recipe.DeletedAt == null);
+
         builder.HasOne(x => x.Recipe)
             .WithMany(x => x.RecipeTags)
             .HasForeignKey(x => x.RecipeId)

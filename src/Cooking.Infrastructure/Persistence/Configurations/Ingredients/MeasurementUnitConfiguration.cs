@@ -1,5 +1,6 @@
 using Cooking.Domain.Entities.Ingredients;
 using Cooking.Infrastructure.Persistence.Configurations.Common;
+using Cooking.Infrastructure.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -14,5 +15,7 @@ public class MeasurementUnitConfiguration : ReferenceEntityConfiguration<Measure
         builder.Property(x => x.Abbreviation)
             .IsRequired()
             .HasMaxLength(20);
+
+        builder.HasData(ReferenceDataSeed.MeasurementUnits);
     }
 }

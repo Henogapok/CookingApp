@@ -14,5 +14,8 @@ public class RecipeStepConfiguration : BaseEntityConfiguration<RecipeStep>
         builder.Property(x => x.Instruction)
             .IsRequired()
             .HasMaxLength(4000);
+
+        // Согласован с soft delete рецепта (см. RecipeConfiguration).
+        builder.HasQueryFilter(x => x.Recipe.DeletedAt == null);
     }
 }

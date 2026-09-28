@@ -10,7 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Текущее состояние реализации
 
-Репозиторий — ранний скелет. `Cooking.Domain`, `Cooking.Application`, `Cooking.Infrastructure` пока содержат только шаблонные `Class1.cs`, а `Cooking.Api`/`Cooking.Worker` — дефолтный boilerplate от `dotnet new` (weather forecast, пример `Worker`). Тестов, `.gitignore`, git-репозитория ещё нет. В `docker-compose.yml` подняты Postgres и RabbitMQ, но пакеты EF Core, MassTransit, MediatR, Telegram.Bot и т.д. в `.csproj` ещё не подключены — вся схема ниже описывает целевую архитектуру, а не то, что уже есть в коде.
+Готово: EF Core + миграции, справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация и семьи; кнопки рецептов — заглушки), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
+
+Ещё нет: авторизации (пока `UserId` передаётся в запросе), подсчёта КБЖУ/стоимости рецепта, LLM-парсинга, Worker/MassTransit, PWA.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -89,6 +91,8 @@ Domain ← Application ← Infrastructure
 - Пользователь состоит максимум в одной семье. Последний вышедший участник удаляет семью
 - Авторизация через Telegram Login Widget
 - Рецепт принадлежит автору (CreatedByUserId), а не семье. В семье видны рецепты всех её участников; при вступлении/выходе ничего не переносится — рецепты уходят вместе с автором
+- Права на рецепт: **смотреть и редактировать** — автор и участники его семьи; **удалять** — только автор. Постороннему API отвечает 404 (не 403), чтобы не раскрывать чужие рецепты
+- Удаление рецепта — soft delete (`DeletedAt`), удалённые скрыты глобальным query filter'ом EF
 - Общее в семье: рецепты участников, списки покупок (принадлежат семье)
 - Личное: избранное
 
@@ -171,11 +175,7 @@ erDiagram
     guid ComplexityId FK
     int Servings
     int CookingTimeMinutes
-    decimal TotalCalories
-    decimal TotalProtein
-    decimal TotalFat
-    decimal TotalCarbs
-    decimal EstimatedCost
+    datetime DeletedAt "nullable, soft delete"
     datetime CreatedAt
     datetime UpdatedAt
   }
@@ -289,12 +289,10 @@ erDiagram
 - ComplexityId (Guid, FK → Complexity)
 - Servings (int)
 - CookingTimeMinutes (int)
-- TotalCalories (decimal)
-- TotalProtein (decimal)
-- TotalFat (decimal)
-- TotalCarbs (decimal)
-- EstimatedCost (decimal)
+- DeletedAt (DateTime?) — soft delete; не null → рецепт удалён (query filter прячет его и его ингредиенты/шаги/теги)
 - CreatedAt, UpdatedAt
+
+КБЖУ и стоимость в Recipe **не хранятся** — см. «Архитектурные решения».
 
 #### IngredientCatalog
 - Id (Guid, PK)
@@ -346,13 +344,17 @@ erDiagram
 - **IngredientCategory** — категория ингредиента: Мясо, Овощи, Крупы, Молочные, Специи и т.д.
 - **MeasurementUnit** — единица измерения: г, мл, шт, ст.л., ч.л. (поля: Name, Abbreviation)
 - **DataSource** — источник данных: Manual, LLM, FatSecret
-- **TagType** — тип тега: MealType, Cuisine, CookingMethod и т.д.
+- **TagType** — тип тега: MealType, Cuisine, CookingMethod, Diet
+- **Tag** (не чистый справочник: есть TagTypeId) — базовый набор тегов по каждому типу
+
+Seed — через `HasData` в EF-конфигурациях, значения в `Infrastructure/Persistence/Seed/ReferenceDataSeed.cs`. Id фиксированные: константы в `Cooking.Domain/ReferenceData/ReferenceIds.cs` (например, `ReferenceIds.SourceTypes.Instagram`) — код ссылается на них напрямую, а не ищет по имени. Добавил/изменил seed → новая миграция; Id уже существующих записей не менять.
 
 ## Архитектурные решения
 
 - Все enums вынесены в отдельные справочные таблицы (не enum в коде)
 - Many-to-many для тегов через промежуточную таблицу RecipeTag — соблюдает 3НФ
-- КБЖУ и стоимость рецепта считаются на лету из IngredientCatalog: `amount × catalogValue / 100`
+- КБЖУ и стоимость рецепта **не хранятся**, а считаются из IngredientCatalog: `amount × catalogValue / 100` — так изменение цены/КБЖУ ингредиента сразу отражается во всех рецептах. План: Postgres VIEW (`v_recipe_nutrition`), делается после базового Recipe CRUD, когда будут реальные рецепты для проверки. Пока без коэффициентов пересчёта единиц: в расчёт идут только ингредиенты, у которых единица в рецепте совпадает с базовой единицей в каталоге
+- Порции: пока одинаковые (`Servings`). Личный размер порции / вес готового блюда — отложено
 - Масштабирование порций — пересчёт на фронте, базовые Servings хранятся в Recipe
 - Обработка Instagram-видео асинхронная через RabbitMQ: бот кидает сообщение → Worker скачивает, транскрибирует, парсит → отправляет результат обратно
 - BaseEntity (Id, CreatedAt, UpdatedAt) — базовый класс для всех основных entities
