@@ -24,7 +24,8 @@ Cooking/
     ├── Cooking.Domain/          # Entities, enums, interfaces (Class Library)
     ├── Cooking.Application/     # MediatR handlers, DTOs, use cases (Class Library)
     ├── Cooking.Infrastructure/  # EF Core, внешние API (Class Library)
-    ├── Cooking.Api/             # Web API + Telegram webhook (ASP.NET Core Web API)
+    ├── Cooking.Bot/             # Telegram-бот: обработчик апдейтов, клавиатуры, polling/webhook (Class Library)
+    ├── Cooking.Api/             # Web API; хостит бота в своём процессе (ASP.NET Core Web API)
     └── Cooking.Worker/          # MassTransit consumers — фоновая обработка (Worker Service)
 ```
 
@@ -32,9 +33,11 @@ Cooking/
 
 ```
 Domain ← Application ← Infrastructure
-                     ← Api
+                     ← Bot ← Api (хостит бота)
                      ← Worker
 ```
+
+Бот — такой же слой представления, как контроллеры Api, поэтому живёт в отдельной библиотеке, а не в Api/Application/Infrastructure. Когда Worker'у понадобится писать пользователю (например, «рецепт из Reels готов»), это делается через интерфейс в Application с реализацией в Infrastructure, а не ссылкой Worker → Bot.
 
 ## Стек
 
@@ -353,6 +356,15 @@ erDiagram
 - Масштабирование порций — пересчёт на фронте, базовые Servings хранятся в Recipe
 - Обработка Instagram-видео асинхронная через RabbitMQ: бот кидает сообщение → Worker скачивает, транскрибирует, парсит → отправляет результат обратно
 - BaseEntity (Id, CreatedAt, UpdatedAt) — базовый класс для всех основных entities
+
+## Telegram-бот
+
+- Код в `src/Cooking.Bot/`; Api подключает его двумя строками: `AddTelegramBot(configuration)` и `app.MapTelegramWebhook()`. Вся логика — `BotUpdateHandler` (scoped, работает через MediatR); транспорт выбирается настройкой `Telegram:UseWebhook`:
+  - `false` (разработка) — `BotPollingService`, long polling, публичный адрес не нужен;
+  - `true` (прод) — `TelegramWebhookEndpoint` (minimal API `POST /api/telegram/webhook`, маршрут есть только в webhook-режиме; проверяет заголовок `X-Telegram-Bot-Api-Secret-Token`) + `BotWebhookRegistrationService` регистрирует webhook при старте.
+- Для разработки — отдельный dev-бот (Telegram не даёт одному боту одновременно polling и webhook).
+- Токен **никогда** не коммитится: локально `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Api`, в проде — переменные окружения `Telegram__BotToken`, `Telegram__UseWebhook=true`, `Telegram__WebhookUrl`, `Telegram__WebhookSecretToken`.
+- Без токена Api стартует без бота (REST работает).
 
 ## Docker (локальная разработка)
 

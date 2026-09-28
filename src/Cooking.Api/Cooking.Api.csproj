@@ -1,14 +1,16 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>0923b4b6-a27c-43f1-86dc-003780f3308f</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Cooking.Application\Cooking.Application.csproj" />
     <ProjectReference Include="..\Cooking.Infrastructure\Cooking.Infrastructure.csproj" />
+    <ProjectReference Include="..\Cooking.Bot\Cooking.Bot.csproj" />
   </ItemGroup>
 
   <ItemGroup>
