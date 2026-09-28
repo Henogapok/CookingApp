@@ -14,6 +14,7 @@ public interface IDataContext
 {
     DbSet<Family> Families { get; }
     DbSet<User> Users { get; }
+    DbSet<FamilyInvite> FamilyInvites { get; }
 
     DbSet<Recipe> Recipes { get; }
     DbSet<RecipeIngredient> RecipeIngredients { get; }

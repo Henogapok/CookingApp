@@ -12,6 +12,7 @@ public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbCo
 {
     public DbSet<Family> Families => Set<Family>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<FamilyInvite> FamilyInvites => Set<FamilyInvite>();
 
     public DbSet<Recipe> Recipes => Set<Recipe>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();

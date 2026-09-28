@@ -1,7 +1,9 @@
 using Cooking.Application.Common.Interfaces;
+using Cooking.Application.Families;
 using Cooking.Application.Ingredients;
 using Cooking.Application.MeasurementUnits;
 using Cooking.Application.ReferenceData;
+using Cooking.Application.Users;
 using Cooking.Infrastructure.Persistence;
 using Cooking.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +25,8 @@ public static class DependencyInjection
         services.AddScoped<IReferenceDataRepositoryService, ReferenceDataRepositoryService>();
         services.AddScoped<IMeasurementUnitRepositoryService, MeasurementUnitRepositoryService>();
         services.AddScoped<IIngredientCatalogRepositoryService, IngredientCatalogRepositoryService>();
+        services.AddScoped<IUserRepositoryService, UserRepositoryService>();
+        services.AddScoped<IFamilyRepositoryService, FamilyRepositoryService>();
 
         return services;
     }

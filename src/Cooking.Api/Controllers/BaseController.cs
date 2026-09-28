@@ -28,6 +28,7 @@ public abstract class BaseController : ControllerBase
             ErrorCode.NotFound => ("Не удалось найти информацию", StatusCodes.Status404NotFound),
             ErrorCode.Validation => ("Невалидный параметр", StatusCodes.Status400BadRequest),
             ErrorCode.LogicConflict => ("Конфликт логической зависимости", StatusCodes.Status409Conflict),
+            ErrorCode.Forbidden => ("Недостаточно прав", StatusCodes.Status403Forbidden),
             _ => ("Необработанное исключение", StatusCodes.Status500InternalServerError)
         };
 
