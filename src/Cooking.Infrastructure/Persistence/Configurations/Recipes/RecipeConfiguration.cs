@@ -18,11 +18,9 @@ public class RecipeConfiguration : BaseEntityConfiguration<Recipe>
         builder.Property(x => x.Description).HasMaxLength(2000);
         builder.Property(x => x.SourceUrl).HasMaxLength(2048);
 
-        builder.Property(x => x.TotalCalories).HasPrecision(10, 2);
-        builder.Property(x => x.TotalProtein).HasPrecision(10, 2);
-        builder.Property(x => x.TotalFat).HasPrecision(10, 2);
-        builder.Property(x => x.TotalCarbs).HasPrecision(10, 2);
-        builder.Property(x => x.EstimatedCost).HasPrecision(10, 2);
+        // Soft delete: удалённые рецепты не попадают ни в один запрос.
+        // Обойти фильтр (например, для восстановления) — IgnoreQueryFilters().
+        builder.HasQueryFilter(x => x.DeletedAt == null);
 
         builder.HasOne(x => x.SourceType)
             .WithMany()

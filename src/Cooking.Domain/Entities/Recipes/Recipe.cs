@@ -25,12 +25,11 @@ public class Recipe : BaseEntity
     public int Servings { get; set; }
     public int CookingTimeMinutes { get; set; }
 
-    /// <summary>КБЖУ и стоимость — денормализованные суммы, пересчитываются из IngredientCatalog.</summary>
-    public decimal TotalCalories { get; set; }
-    public decimal TotalProtein { get; set; }
-    public decimal TotalFat { get; set; }
-    public decimal TotalCarbs { get; set; }
-    public decimal EstimatedCost { get; set; }
+    // КБЖУ и стоимость не хранятся: считаются из IngredientCatalog (позже — через view в БД),
+    // чтобы изменение цены/КБЖУ ингредиента сразу отражалось во всех рецептах.
+
+    /// <summary>Soft delete: не null — рецепт удалён и скрыт глобальным query filter'ом.</summary>
+    public DateTime? DeletedAt { get; set; }
 
     public ICollection<RecipeIngredient> Ingredients { get; set; } = new List<RecipeIngredient>();
     public ICollection<RecipeStep> Steps { get; set; } = new List<RecipeStep>();

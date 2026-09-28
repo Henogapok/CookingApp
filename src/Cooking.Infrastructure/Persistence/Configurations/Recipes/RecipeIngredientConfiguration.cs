@@ -13,6 +13,9 @@ public class RecipeIngredientConfiguration : BaseEntityConfiguration<RecipeIngre
 
         builder.Property(x => x.Amount).HasPrecision(10, 2);
 
+        // Согласован с soft delete рецепта (см. RecipeConfiguration).
+        builder.HasQueryFilter(x => x.Recipe.DeletedAt == null);
+
         builder.HasOne(x => x.IngredientCatalog)
             .WithMany(x => x.RecipeIngredients)
             .HasForeignKey(x => x.IngredientCatalogId)
