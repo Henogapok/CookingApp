@@ -10,9 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Текущее состояние реализации
 
-Готово: EF Core + миграции, справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация и семьи; кнопки рецептов — заглушки), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
+Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Ещё нет: авторизации (пока `UserId` передаётся в запросе), подсчёта КБЖУ/стоимости рецепта, LLM-парсинга, Worker/MassTransit, PWA.
+Ещё нет: авторизации (пока `UserId` передаётся в запросе), правки черновика ответом на превью, Reels, PWA.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -28,7 +28,7 @@ Cooking/
     ├── Cooking.Infrastructure/  # EF Core, внешние API (Class Library)
     ├── Cooking.Bot/             # Telegram-бот: обработчик апдейтов, клавиатуры, polling/webhook (Class Library)
     ├── Cooking.Api/             # Web API; хостит бота в своём процессе (ASP.NET Core Web API)
-    └── Cooking.Worker/          # MassTransit consumers — фоновая обработка (Worker Service)
+    └── Cooking.Worker/          # Заготовка под отдельный процесс фоновой обработки; пока не используется (см. «Разбор рецептов из текста»)
 ```
 
 Зависимости между проектами (Clean Architecture, ссылки идут только "внутрь"):
@@ -45,7 +45,7 @@ Domain ← Application ← Infrastructure
 
 - .NET 8, C#
 - PostgreSQL (EF Core, Code First, миграции)
-- RabbitMQ + MassTransit (асинхронная обработка видео/аудио)
+- Фоновая обработка — очередь в памяти процесса (`Channel` + `BackgroundService`) за интерфейсом; RabbitMQ + MassTransit — только если понадобится надёжность/отдельный процесс
 - MediatR (CQRS: commands/queries)
 - Telegram.Bot SDK
 - Whisper API (OpenAI) — Speech-to-Text
@@ -173,8 +173,8 @@ erDiagram
     string SourceUrl
     guid SourceTypeId FK
     guid ComplexityId FK
-    int Servings
-    int CookingTimeMinutes
+    int Servings "nullable"
+    int CookingTimeMinutes "nullable"
     datetime DeletedAt "nullable, soft delete"
     datetime CreatedAt
     datetime UpdatedAt
@@ -195,6 +195,7 @@ erDiagram
     string Name UK
     guid CategoryId FK
     guid BaseUnitId FK
+    decimal PieceWeight "nullable, вес 1 шт"
     decimal PricePer100g
     decimal CaloriesPer100g
     decimal ProteinPer100g
@@ -226,8 +227,8 @@ erDiagram
     guid Id PK
     guid RecipeId FK
     guid IngredientCatalogId FK
-    decimal Amount
-    guid UnitId FK
+    decimal Amount "nullable = по вкусу"
+    guid UnitId FK "nullable = по вкусу"
     int SortOrder
     datetime CreatedAt
     datetime UpdatedAt
@@ -287,8 +288,8 @@ erDiagram
 - SourceUrl (string?)
 - SourceTypeId (Guid, FK → SourceType)
 - ComplexityId (Guid, FK → Complexity)
-- Servings (int)
-- CookingTimeMinutes (int)
+- Servings (int?) — null, если в источнике не указано (не выдумываем)
+- CookingTimeMinutes (int?) — null, если в источнике не указано
 - DeletedAt (DateTime?) — soft delete; не null → рецепт удалён (query filter прячет его и его ингредиенты/шаги/теги)
 - CreatedAt, UpdatedAt
 
@@ -299,7 +300,8 @@ erDiagram
 - Name (string, unique)
 - CategoryId (Guid, FK → IngredientCategory)
 - BaseUnitId (Guid, FK → MeasurementUnit) — базовая единица для расчёта КБЖУ
-- PricePer100g (decimal)
+- PieceWeight (decimal?) — вес/объём 1 шт в базовой единице, чтобы пересчитать «2 шт» в граммы; null — штуками не считают
+- PricePer100g (decimal) — в тенге (KZT); у ингредиентов, созданных LLM, — 0 (вносится вручную)
 - CaloriesPer100g (decimal)
 - ProteinPer100g (decimal)
 - FatPer100g (decimal)
@@ -312,8 +314,8 @@ erDiagram
 - Id (Guid, PK)
 - RecipeId (Guid, FK → Recipe)
 - IngredientCatalogId (Guid, FK → IngredientCatalog)
-- Amount (decimal)
-- UnitId (Guid, FK → MeasurementUnit) — единица в этом рецепте (может отличаться от базовой)
+- Amount (decimal?) — null вместе с UnitId = «по вкусу» (соль, масло для жарки); в расчёт КБЖУ/стоимости не идёт
+- UnitId (Guid?, FK → MeasurementUnit) — единица в этом рецепте (может отличаться от базовой)
 - SortOrder (int) — порядок отображения
 - CreatedAt, UpdatedAt
 
@@ -353,10 +355,10 @@ Seed — через `HasData` в EF-конфигурациях, значения
 
 - Все enums вынесены в отдельные справочные таблицы (не enum в коде)
 - Many-to-many для тегов через промежуточную таблицу RecipeTag — соблюдает 3НФ
-- КБЖУ и стоимость рецепта **не хранятся**, а считаются из IngredientCatalog: `amount × catalogValue / 100` — так изменение цены/КБЖУ ингредиента сразу отражается во всех рецептах. План: Postgres VIEW (`v_recipe_nutrition`), делается после базового Recipe CRUD, когда будут реальные рецепты для проверки. Пока без коэффициентов пересчёта единиц: в расчёт идут только ингредиенты, у которых единица в рецепте совпадает с базовой единицей в каталоге
+- КБЖУ и стоимость рецепта **не хранятся**, а считаются при каждом показе из IngredientCatalog по **сырой** массе: `количество в базовой единице × значение на 100 / 100` — изменение цены/КБЖУ/формулы сразу отражается во всех рецептах. Считает `Application/Nutrition/NutritionCalculator` (C#, а не VIEW в БД — чтобы тестировать и менять формулу в одном месте). Пересчёт единиц: г и мл 1:1 (плотности пока нет — если понадобится, добавить поле в каталог и учесть его в `ToBaseAmount`), ст.л. = 15, ч.л. = 5, стакан = 250, щепотка = 0.5, шт — через `PieceWeight`. «По вкусу» не считается; ингредиенты, которые не пересчитать (шт без веса), перечисляются как «не учтено». Показывается КБЖУ всего блюда и на порцию; на 100 г готового блюда — нет (нужен вес готового блюда, отложено)
 - Порции: пока одинаковые (`Servings`). Личный размер порции / вес готового блюда — отложено
 - Масштабирование порций — пересчёт на фронте, базовые Servings хранятся в Recipe
-- Обработка Instagram-видео асинхронная через RabbitMQ: бот кидает сообщение → Worker скачивает, транскрибирует, парсит → отправляет результат обратно
+- Долгая обработка (LLM, позже Reels) — в фоне через `IRecipeParsingQueue`, а не в обработчике апдейта: polling обрабатывает апдейты по одному, и 15 секунд LLM у одного пользователя задержали бы всех остальных
 - BaseEntity (Id, CreatedAt, UpdatedAt) — базовый класс для всех основных entities
 
 ## Telegram-бот
@@ -367,7 +369,23 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Для разработки — отдельный dev-бот (Telegram не даёт одному боту одновременно polling и webhook).
 - Токен **никогда** не коммитится: локально `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Api`, в проде — переменные окружения `Telegram__BotToken`, `Telegram__UseWebhook=true`, `Telegram__WebhookUrl`, `Telegram__WebhookSecretToken`.
 - Без токена Api стартует без бота (REST работает).
-- Бот не хранит состояние диалога. Поиск рецептов: `/search <запрос>`, либо кнопка «Найти рецепт» / `/search` без аргументов → список + сообщение `BotTexts.SearchPrompt` с ForceReply, и ответ на него = запрос. Обычный текст без команды поиском не считается — он зарезервирован под LLM-парсинг рецептов. Список команд (`BotCommandNames.All`) регистрируется в Telegram при старте.
+- Бот не хранит состояние диалога. Поиск рецептов: `/search <запрос>`, либо кнопка «Найти рецепт» / `/search` без аргументов → список + сообщение `BotTexts.SearchPrompt` с ForceReply, и ответ на него = запрос. Обычный текст без команды (от 40 символов) и ответ на `BotTexts.RecipePrompt` (кнопка «Создать рецепт») — это рецепт для разбора. Список команд (`BotCommandNames.All`) регистрируется в Telegram при старте.
+
+## Разбор рецептов из текста (LLM)
+
+Вся логика — в Application (`RecipeDrafts/`), бот и `RecipeDraftsController` — тонкие клиенты одних и тех же команд (PWA будет вызывать их же).
+
+1. `CreateRecipeDraftCommand` — сохраняет `RecipeDraft` (исходный текст, `ContentJson = null`) и кладёт `RecipeParsingJob(DraftId)` в `IRecipeParsingQueue`.
+2. `RecipeParsingBackgroundService` (Infrastructure) разбирает очередь, до `RecipeParsing:MaxParallelism` задач параллельно, каждую — через `ParseRecipeDraftCommand`.
+3. `IRecipeTextParser` (реализация `ClaudeRecipeTextParser`, structured outputs) возвращает `ParsedRecipe` — имена и коды без наших Id. В промпт идут названия из каталога (чтобы не плодить дубли) и теги из базы (LLM выбирает только из них).
+4. `RecipeDraftMapper` (чистый, покрыт тестами) переводит ответ в `RecipeDraftContent`: ингредиент — либо Id из каталога (сравнение без регистра/пробелов, ё = е), либо данные нового ингредиента; неизвестные единицы/пустое количество → «по вкусу»; порции/время из текста и оценки ИИ хранятся отдельно.
+5. Итог уходит пользователю через `IRecipeDraftNotifier` (бот: `BotRecipeDraftNotifier` — превью с кнопками «Сохранить» / «Отмена» / «Оценить порции и время»; без бота — `NullRecipeDraftNotifier`).
+6. `ConfirmRecipeDraftCommand` — создаёт недостающие ингредиенты (`CreatedBySource = NutritionSource = LLM`, цена 0; в карточке помечены 🤖), сохраняет рецепт, удаляет черновик. До подтверждения ни в Recipe, ни в каталог ничего не пишется.
+
+- Черновик виден только автору, живёт сутки; просроченные удаляются при создании нового.
+- Очередь — в памяти процесса: задачи, не обработанные до перезапуска, теряются (черновик просто истечёт). Нужна надёжность — новая реализация `IRecipeParsingQueue` на брокере, команды не меняются.
+- Настройки — секция `Anthropic` (`Model`, `Effort`, `MaxTokens`, `RefusalFallback`) в appsettings: модель меняется конфигом. Ключ — только `dotnet user-secrets set "Anthropic:ApiKey" "<key>" --project src/Cooking.Api` (прод: `Anthropic__ApiKey`). Без ключа Api стартует, а разбор отвечает «не настроен».
+- Следующий шаг: правка черновика ответом на превью («лука не надо, порций 4») — LLM получает черновик + правку.
 
 ## Docker (локальная разработка)
 

@@ -96,6 +96,10 @@ namespace Cooking.Infrastructure.Migrations
                     b.Property<Guid>("NutritionSourceId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("PieceWeight")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
                     b.Property<decimal>("PricePer100g")
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
@@ -317,7 +321,7 @@ namespace Cooking.Infrastructure.Migrations
                     b.Property<Guid>("ComplexityId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("CookingTimeMinutes")
+                    b.Property<int?>("CookingTimeMinutes")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
@@ -333,7 +337,7 @@ namespace Cooking.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<int>("Servings")
+                    b.Property<int?>("Servings")
                         .HasColumnType("integer");
 
                     b.Property<Guid>("SourceTypeId")
@@ -362,13 +366,47 @@ namespace Cooking.Infrastructure.Migrations
                     b.ToTable("Recipes");
                 });
 
+            modelBuilder.Entity("Cooking.Domain.Entities.Recipes.RecipeDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SourceText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RecipeDrafts");
+                });
+
             modelBuilder.Entity("Cooking.Domain.Entities.Recipes.RecipeIngredient", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("Amount")
+                    b.Property<decimal?>("Amount")
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
 
@@ -384,7 +422,7 @@ namespace Cooking.Infrastructure.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
-                    b.Property<Guid>("UnitId")
+                    b.Property<Guid?>("UnitId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -851,6 +889,17 @@ namespace Cooking.Infrastructure.Migrations
                     b.Navigation("SourceType");
                 });
 
+            modelBuilder.Entity("Cooking.Domain.Entities.Recipes.RecipeDraft", b =>
+                {
+                    b.HasOne("Cooking.Domain.Entities.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Cooking.Domain.Entities.Recipes.RecipeIngredient", b =>
                 {
                     b.HasOne("Cooking.Domain.Entities.Ingredients.IngredientCatalog", "IngredientCatalog")
@@ -868,8 +917,7 @@ namespace Cooking.Infrastructure.Migrations
                     b.HasOne("Cooking.Domain.Entities.Ingredients.MeasurementUnit", "Unit")
                         .WithMany()
                         .HasForeignKey("UnitId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("IngredientCatalog");
 

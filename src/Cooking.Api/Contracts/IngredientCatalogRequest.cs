@@ -10,4 +10,5 @@ public record IngredientCatalogRequest(
     decimal FatPer100G,
     decimal CarbsPer100G,
     Guid CreatedBySourceId,
-    Guid NutritionSourceId);
+    Guid NutritionSourceId,
+    decimal? PieceWeight); // вес 1 шт в базовой единице; null — не считается штуками

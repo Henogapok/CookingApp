@@ -1,5 +1,7 @@
 using Cooking.Application.Tags;
 
+using Cooking.Application.Nutrition;
+
 namespace Cooking.Application.Recipes;
 
 public record RecipeDto(
@@ -11,23 +13,28 @@ public record RecipeDto(
     string SourceTypeName,
     Guid ComplexityId,
     string ComplexityName,
-    int Servings,
-    int CookingTimeMinutes,
+    int? Servings,
+    int? CookingTimeMinutes,
     Guid CreatedByUserId,
     string CreatedByFirstName,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<RecipeIngredientDto> Ingredients,
     List<RecipeStepDto> Steps,
-    List<TagDto> Tags);
+    List<TagDto> Tags,
+    RecipeNutrition Nutrition);
 
 public record RecipeIngredientDto(
     Guid IngredientCatalogId,
     string IngredientName,
-    decimal Amount,
-    Guid UnitId,
-    string UnitName,
-    string UnitAbbreviation);
+    decimal? Amount,
+    Guid? UnitId,
+    string? UnitName,
+    string? UnitAbbreviation,
+    bool IsNutritionEstimatedByLlm,
+    decimal? BaseAmount,
+    string BaseUnitAbbreviation,
+    NutritionFacts? Nutrition);
 
 public record RecipeStepDto(int StepNumber, string Instruction, int? TimerSeconds);
 
@@ -36,7 +43,7 @@ public record RecipeSummaryDto(
     Guid Id,
     string Title,
     string ComplexityName,
-    int Servings,
-    int CookingTimeMinutes,
+    int? Servings,
+    int? CookingTimeMinutes,
     Guid CreatedByUserId,
     string CreatedByFirstName);

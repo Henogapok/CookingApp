@@ -59,4 +59,33 @@ public class RecipeFieldsValidatorTests
     {
         Assert.False(Validator.Validate(ValidFields() with { Steps = [new RecipeStepFields("Шаг", 0)] }).IsValid);
     }
+
+    [Fact]
+    public void ToTasteIngredientAndUnknownServingsAndTime_PassValidation()
+    {
+        var fields = ValidFields() with
+        {
+            Servings = null,
+            CookingTimeMinutes = null,
+            Ingredients = [new RecipeIngredientFields(Guid.NewGuid(), null, null)],
+        };
+
+        Assert.True(Validator.Validate(fields).IsValid);
+    }
+
+    [Fact]
+    public void AmountWithoutUnit_FailsValidation()
+    {
+        var fields = ValidFields() with { Ingredients = [new RecipeIngredientFields(Guid.NewGuid(), 2, null)] };
+
+        Assert.False(Validator.Validate(fields).IsValid);
+    }
+
+    [Fact]
+    public void UnitWithoutAmount_FailsValidation()
+    {
+        var fields = ValidFields() with { Ingredients = [new RecipeIngredientFields(Guid.NewGuid(), null, Guid.NewGuid())] };
+
+        Assert.False(Validator.Validate(fields).IsValid);
+    }
 }

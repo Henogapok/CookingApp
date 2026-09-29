@@ -17,6 +17,7 @@ public class IngredientCatalogConfiguration : BaseEntityConfiguration<Ingredient
 
         builder.HasIndex(x => x.Name).IsUnique();
 
+        builder.Property(x => x.PieceWeight).HasPrecision(10, 2);
         builder.Property(x => x.PricePer100g).HasPrecision(10, 2);
         builder.Property(x => x.CaloriesPer100g).HasPrecision(10, 2);
         builder.Property(x => x.ProteinPer100g).HasPrecision(10, 2);

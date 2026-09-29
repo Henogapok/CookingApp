@@ -29,6 +29,8 @@ public abstract class BaseController : ControllerBase
             ErrorCode.Validation => ("Невалидный параметр", StatusCodes.Status400BadRequest),
             ErrorCode.LogicConflict => ("Конфликт логической зависимости", StatusCodes.Status409Conflict),
             ErrorCode.Forbidden => ("Недостаточно прав", StatusCodes.Status403Forbidden),
+            ErrorCode.Unavailable => ("Функция недоступна", StatusCodes.Status503ServiceUnavailable),
+            ErrorCode.ExternalService => ("Ошибка внешнего сервиса", StatusCodes.Status502BadGateway),
             _ => ("Необработанное исключение", StatusCodes.Status500InternalServerError)
         };
 

@@ -19,6 +19,7 @@ public interface IDataContext
     DbSet<Recipe> Recipes { get; }
     DbSet<RecipeIngredient> RecipeIngredients { get; }
     DbSet<RecipeStep> RecipeSteps { get; }
+    DbSet<RecipeDraft> RecipeDrafts { get; }
     DbSet<SourceType> SourceTypes { get; }
     DbSet<Complexity> Complexities { get; }
 
