@@ -81,8 +81,8 @@ public static class RecipeDraftMapper
         new(
             content.Title,
             content.Description,
-            SourceUrl: null,
-            ReferenceIds.SourceTypes.Manual,
+            content.SourceUrl,
+            content.SourceTypeId ?? ReferenceIds.SourceTypes.Manual,
             content.ComplexityId,
             content.EffectiveServings,
             content.EffectiveCookingTimeMinutes,
@@ -94,6 +94,29 @@ public static class RecipeDraftMapper
                 .ToList(),
             content.Steps,
             content.TagIds);
+
+    /// <summary>
+    /// Черновик из сохранённого рецепта — отправная точка для его изменения. Порции/время считаем «указанными»:
+    /// рецепт их уже прошёл, оценивать заново нечего.
+    /// </summary>
+    public static RecipeDraftContent FromRecipe(RecipeDto recipe) =>
+        new(
+            recipe.Title,
+            recipe.Description,
+            recipe.ComplexityId,
+            recipe.Servings,
+            ServingsEstimate: null,
+            recipe.CookingTimeMinutes,
+            CookingTimeMinutesEstimate: null,
+            UseEstimates: false,
+            recipe.Ingredients
+                .Select(i => new RecipeDraftIngredient(i.IngredientName, i.IngredientCatalogId, null, i.Amount, i.UnitId))
+                .ToList(),
+            recipe.Steps.Select(s => new RecipeStepFields(s.Instruction, s.TimerSeconds)).ToList(),
+            recipe.Tags.Select(t => t.Id).ToList(),
+            recipe.Id,
+            recipe.SourceUrl,
+            recipe.SourceTypeId);
 
     /// <summary>
     /// Текущая версия черновика для LLM при правке — в тех же кодах, что и ответ (unit, complexity, названия тегов),

@@ -11,6 +11,10 @@ public interface IRecipeDraftRepositoryService
     /// <summary>Создаёт черновик (ещё не разобранный) и заодно удаляет просроченные.</summary>
     Task<Result<Guid>> CreateAsync(Guid userId, string sourceText, CancellationToken cancellationToken);
 
+    /// <summary>Черновик изменения рецепта: сразу с текущей версией и правкой, которую надо применить.</summary>
+    Task<Result<Guid>> CreateForEditAsync(
+        Guid userId, string sourceText, RecipeDraftContent content, string correction, CancellationToken cancellationToken);
+
     /// <summary>Для фонового разбора: исходный текст, автор, текущая версия и правка — без проверки доступа.</summary>
     Task<Result<RecipeDraftSource>> GetSourceAsync(Guid id, CancellationToken cancellationToken);
 

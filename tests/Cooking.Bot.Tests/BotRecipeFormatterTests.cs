@@ -197,12 +197,14 @@ public class BotRecipeFormatterTests
         int? servings = null,
         bool servingsIsEstimate = false,
         int? cookingTimeMinutes = 90,
-        List<RecipeDraftIngredientDto>? ingredients = null) =>
+        List<RecipeDraftIngredientDto>? ingredients = null,
+        Guid? recipeId = null) =>
         new(
             Guid.NewGuid(), "Плов <узбекский>", null, "Medium",
             servings, servingsIsEstimate, cookingTimeMinutes, CookingTimeIsEstimate: false,
             CanApplyEstimates: servings is null,
             IsBeingCorrected: false,
+            RecipeId: recipeId,
             ingredients ?? [DraftIngredient("Рис", 500, "г", isNew: false)],
             [new RecipeStepDto(1, "Обжарить мясо", null)],
             ["Ужин"],
@@ -291,5 +293,12 @@ public class BotRecipeFormatterTests
         Assert.Contains("<blockquote expandable>1. Варить ⏲ 10 мин</blockquote>", card);
         Assert.DoesNotContain("🔥", card.Split("<blockquote")[0]); // КБЖУ — после ингредиентов,
         Assert.DoesNotContain("<blockquote", card.Split("🔥")[1].Split("<b>Приготовление")[0]); // но вне цитаты
+    }
+
+    [Fact]
+    public void FormatDraft_ForRecipeEdit_HasEditHeader()
+    {
+        Assert.StartsWith("📝 Вот что я разобрал", BotRecipeFormatter.FormatDraft(CreateDraft()));
+        Assert.StartsWith("✏️ Так будет выглядеть рецепт после изменений", BotRecipeFormatter.FormatDraft(CreateDraft(recipeId: Guid.NewGuid())));
     }
 }

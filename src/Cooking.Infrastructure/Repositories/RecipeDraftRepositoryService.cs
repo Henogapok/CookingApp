@@ -37,6 +37,21 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
         return Result.Ok(draft.Id);
     }
 
+    public async Task<Result<Guid>> CreateForEditAsync(
+        Guid userId, string sourceText, RecipeDraftContent content, string correction, CancellationToken cancellationToken)
+    {
+        var created = await CreateAsync(userId, sourceText, cancellationToken);
+        if (created.IsFailed)
+            return created;
+
+        var draft = await dataContext.RecipeDrafts.FindAsync([created.Value], cancellationToken);
+        draft!.ContentJson = JsonSerializer.Serialize(content, JsonOptions);
+        draft.PendingCorrection = correction;
+        await dataContext.SaveChangesAsync(cancellationToken);
+
+        return created;
+    }
+
     public async Task<Result<RecipeDraftSource>> GetSourceAsync(Guid id, CancellationToken cancellationToken)
     {
         var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
@@ -164,6 +179,7 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             CookingTimeIsEstimate: c.CookingTimeMinutes is null && c.EffectiveCookingTimeMinutes is not null,
             c.CanApplyEstimates,
             IsBeingCorrected: draft.Value.PendingCorrection is not null,
+            c.RecipeId,
             c.Ingredients
                 .Select((i, index) =>
                 {

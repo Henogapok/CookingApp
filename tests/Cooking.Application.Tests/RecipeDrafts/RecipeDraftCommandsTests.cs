@@ -442,4 +442,65 @@ public class RecipeDraftCommandsTests
         AssertError(await CorrectAsync(context, draftId, userId, "соли не надо"), ErrorCode.LogicConflict);
         AssertError(await CorrectAsync(context, draftId, Guid.NewGuid(), "соли не надо"), ErrorCode.NotFound);
     }
+
+    private static async Task<Guid> SaveChickenRecipeAsync(CookingDbContext context, Guid userId)
+    {
+        var draftId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(ChickenRecipe)), new FakeNotifier());
+        return (await ConfirmAsync(context, draftId, userId)).Value;
+    }
+
+    private static Task<Result<Guid>> EditAsync(CookingDbContext context, Guid recipeId, Guid userId, string text) =>
+        new EditRecipeCommandHandler(new RecipeRepositoryService(context), new RecipeDraftRepositoryService(context), new NoopQueue())
+            .Handle(new EditRecipeCommand(recipeId, userId, text), CancellationToken.None);
+
+    [Fact]
+    public async Task EditRecipe_CorrectsThroughLlmAndUpdatesSameRecipeKeepingSource()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var recipeId = await SaveChickenRecipeAsync(context, userId);
+        var saved = await context.Recipes.SingleAsync();
+        saved.SourceUrl = "https://instagram.com/reel/1";
+        saved.SourceTypeId = ReferenceIds.SourceTypes.Instagram;
+        await context.SaveChangesAsync();
+
+        var draftId = (await EditAsync(context, recipeId, userId, "соли не надо, порций 3")).Value;
+
+        var parser = new FakeParser(Result.Ok(ChickenRecipe with { Servings = 3, Ingredients = [ChickenRecipe.Ingredients[0]] }));
+        var notifier = new FakeNotifier();
+        await ParseAsync(context, draftId, parser, notifier);
+
+        Assert.Equal("соли не надо, порций 3", parser.LastRequest!.Correction);
+        Assert.Contains("Соль", parser.LastRequest.CurrentRecipeJson); // LLM видит текущую версию рецепта
+        Assert.Equal([draftId], notifier.Ready);
+        Assert.Equal(recipeId, (await new RecipeDraftRepositoryService(context).GetByIdAsync(draftId, userId, CancellationToken.None)).Value.RecipeId);
+
+        Assert.Equal(recipeId, (await ConfirmAsync(context, draftId, userId)).Value);
+
+        var recipe = (await new RecipeRepositoryService(context).GetByIdAsync(recipeId, userId, CancellationToken.None)).Value;
+        Assert.Equal(1, await context.Recipes.CountAsync());
+        Assert.Equal(3, recipe.Servings);
+        Assert.Equal(["Куриное филе"], recipe.Ingredients.Select(i => i.IngredientName)); // имя — из каталога
+        Assert.Equal("https://instagram.com/reel/1", recipe.SourceUrl);
+        Assert.Equal(ReferenceIds.SourceTypes.Instagram, recipe.SourceTypeId);
+    }
+
+    [Fact]
+    public async Task EditRecipe_FamilyMemberCan_StrangerCannot()
+    {
+        var (context, authorId, _) = await CreateAsync();
+        await using var _ = context;
+        var family = new Family { Name = "Семья" };
+        var author = await context.Users.FindAsync(authorId);
+        author!.Family = family;
+        var member = new User { TelegramId = 2, FirstName = "Маша", Family = family };
+        var stranger = new User { TelegramId = 3, FirstName = "Пётр" };
+        context.Users.AddRange(member, stranger);
+        await context.SaveChangesAsync();
+        var recipeId = await SaveChickenRecipeAsync(context, authorId);
+
+        Assert.True((await EditAsync(context, recipeId, member.Id, "порций 3")).IsSuccess);
+        AssertError(await EditAsync(context, recipeId, stranger.Id, "порций 3"), ErrorCode.NotFound);
+    }
 }

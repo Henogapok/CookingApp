@@ -21,7 +21,7 @@ public static class BotRecipeFormatter
     private const string LlmMark = "🤖";
     private const string NewMark = "🆕";
 
-    public const string DraftCorrectionHint = "✏️ Что-то не так? Ответь на это сообщение и напиши, что поправить.";
+    public const string DraftCorrectionHint = "✏️ Что-то не так? Нажми «Исправить» или просто ответь на это сообщение.";
 
     private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
 
@@ -75,7 +75,9 @@ public static class BotRecipeFormatter
     public static string FormatDraft(RecipeDraftDto draft)
     {
         var header = new StringBuilder();
-        header.AppendLine("📝 Вот что я разобрал — проверь, пожалуйста:").AppendLine();
+        header.AppendLine(draft.RecipeId is null
+            ? "📝 Вот что я разобрал — проверь, пожалуйста:"
+            : "✏️ Так будет выглядеть рецепт после изменений — проверь:").AppendLine();
         header.AppendLine($"🍽 <b>{Html(draft.Title)}</b>");
 
         if (!string.IsNullOrWhiteSpace(draft.Description))

@@ -65,9 +65,18 @@ public class ParseRecipeDraftCommandHandler(
             return Result.Ok();
         }
 
-        // После правки пользователь не должен заново нажимать «Оценить».
+        // После правки не должны слетать «Оценить» и привязка к изменяемому рецепту (с его источником).
         if (isCorrection)
-            content = content with { UseEstimates = source.Content!.UseEstimates };
+        {
+            var current = source.Content!;
+            content = content with
+            {
+                UseEstimates = current.UseEstimates,
+                RecipeId = current.RecipeId,
+                SourceUrl = current.SourceUrl,
+                SourceTypeId = current.SourceTypeId,
+            };
+        }
 
         var saved = await drafts.SetContentAsync(source.Id, content, cancellationToken);
         if (saved.IsFailed)
