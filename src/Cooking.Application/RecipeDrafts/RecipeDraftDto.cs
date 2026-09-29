@@ -14,6 +14,8 @@ public record RecipeDraftDto(
     int? CookingTimeMinutes,
     bool CookingTimeIsEstimate,
     bool CanApplyEstimates,
+    bool IsBeingCorrected,
+    Guid? RecipeId,
     List<RecipeDraftIngredientDto> Ingredients,
     List<RecipeStepDto> Steps,
     List<string> TagNames,

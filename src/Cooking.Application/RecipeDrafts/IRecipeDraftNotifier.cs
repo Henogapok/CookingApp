@@ -8,7 +8,11 @@ public interface IRecipeDraftNotifier
 {
     Task DraftReadyAsync(Guid draftId, Guid userId, CancellationToken cancellationToken);
 
+    /// <summary>Первый разбор не удался — черновика больше нет.</summary>
     Task DraftFailedAsync(Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken);
+
+    /// <summary>Правку применить не удалось — черновик остался прежним.</summary>
+    Task DraftCorrectionFailedAsync(Guid draftId, Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken);
 }
 
 public enum RecipeDraftFailureReason

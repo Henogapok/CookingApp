@@ -30,6 +30,20 @@ public class RecipeDraftsController : BaseController
     public async Task<IActionResult> ApplyEstimates(Guid id, RecipeDraftActorRequest request, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new ApplyRecipeDraftEstimatesCommand(id, request.UserId), cancellationToken));
 
+    /// <summary>
+    /// Правка своими словами («лука не надо, порций 4»). Применяется в фоне: 202, затем GET отдаёт новую версию
+    /// (IsBeingCorrected = false). Пока правка применяется, confirm отвечает 409.
+    /// </summary>
+    [HttpPost("{id:guid}/corrections")]
+    public async Task<IActionResult> Correct(Guid id, CorrectRecipeDraftRequest request, CancellationToken cancellationToken)
+    {
+        var result = await Mediator.Send(new CorrectRecipeDraftCommand(id, request.UserId, request.Text), cancellationToken);
+
+        return result.IsSuccess
+            ? AcceptedAtAction(nameof(GetById), new { id, userId = request.UserId }, null)
+            : HandleResult(result);
+    }
+
     /// <summary>Сохранить черновик как рецепт; возвращает Id рецепта.</summary>
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(Guid id, RecipeDraftActorRequest request, CancellationToken cancellationToken)

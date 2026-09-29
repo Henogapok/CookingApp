@@ -7,6 +7,9 @@ namespace Cooking.Application.RecipeDrafts;
 /// ингредиент — либо ссылка на каталог, либо данные нового ингредиента, который создастся при сохранении.
 /// </summary>
 /// <param name="UseEstimates">Пользователь попросил подставить оценки ИИ вместо не указанных порций/времени.</param>
+/// <param name="RecipeId">Черновик изменения сохранённого рецепта: при сохранении обновляется он, а не создаётся новый.</param>
+/// <param name="SourceUrl">Источник исходного рецепта — при изменении не теряется.</param>
+/// <param name="SourceTypeId">Тип источника исходного рецепта; null — Manual.</param>
 public record RecipeDraftContent(
     string Title,
     string? Description,
@@ -18,7 +21,10 @@ public record RecipeDraftContent(
     bool UseEstimates,
     List<RecipeDraftIngredient> Ingredients,
     List<RecipeStepFields> Steps,
-    List<Guid> TagIds)
+    List<Guid> TagIds,
+    Guid? RecipeId = null,
+    string? SourceUrl = null,
+    Guid? SourceTypeId = null)
 {
     public int? EffectiveServings => Servings ?? (UseEstimates ? ServingsEstimate : null);
 

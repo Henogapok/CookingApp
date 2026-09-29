@@ -1,3 +1,4 @@
+using System.Net;
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Families.Commands;
 using Cooking.Application.Families.Queries;
@@ -5,6 +6,7 @@ using Cooking.Application.RecipeDrafts;
 using Cooking.Application.RecipeDrafts.Commands;
 using Cooking.Application.RecipeDrafts.Queries;
 using Cooking.Application.Recipes;
+using Cooking.Application.Recipes.Commands;
 using Cooking.Application.Recipes.Queries;
 using Cooking.Application.Users;
 using Cooking.Application.Users.Commands;
@@ -12,6 +14,7 @@ using FluentResults;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using TelegramUser = Telegram.Bot.Types.User;
@@ -100,6 +103,21 @@ public class BotUpdateHandler(
                 await CreateDraftAsync(chatId, user, recipeText, cancellationToken);
                 break;
 
+            // Ответ на превью черновика — правка («лука не надо, порций 4»).
+            case var correction when replyTo is { From.IsBot: true } && BotCallbacks.FindDraftId(replyTo.ReplyMarkup) is { } draftId:
+                await CorrectDraftAsync(chatId, user, draftId, correction, replyTo.MessageId, promptMessageId: null, cancellationToken);
+                break;
+
+            // Ответ на «Что поменять в рецепте?» после кнопки «Изменить» у карточки.
+            case var change when replyTo is { From.IsBot: true } && BotCallbacks.FindRecipeEditTarget(replyTo) is { } recipeToEdit:
+                await EditRecipeAsync(chatId, replyTo.MessageId, user, recipeToEdit, change, cancellationToken);
+                break;
+
+            // Ответ на «Что поправить?» после кнопки «Исправить».
+            case var correction when replyTo is { From.IsBot: true } && BotCallbacks.FindDraftEditTarget(replyTo) is { } target:
+                await CorrectDraftAsync(chatId, user, target.DraftId, correction, target.PreviewMessageId, replyTo.MessageId, cancellationToken);
+                break;
+
             case BotButtons.CreateFamily:
                 await CreateFamilyAsync(chatId, user, cancellationToken);
                 break;
@@ -162,6 +180,22 @@ public class BotUpdateHandler(
                     cancellationToken: cancellationToken);
                 break;
 
+            case var _ when BotCallbacks.MatchId(data, BotCallbacks.RecipeEditPrefix) is { } recipeId:
+                await AskRecipeEditAsync(chatId, user, recipeId, cancellationToken);
+                break;
+
+            case var _ when BotCallbacks.MatchId(data, BotCallbacks.RecipeDeleteConfirmPrefix) is { } recipeId && callback.Message is not null:
+                await DeleteRecipeAsync(chatId, callback.Message.Id, user, recipeId, cancellationToken);
+                break;
+
+            case var _ when BotCallbacks.MatchId(data, BotCallbacks.RecipeDeletePrefix) is { } recipeId:
+                await AskRecipeDeleteAsync(chatId, user, recipeId, cancellationToken);
+                break;
+
+            case BotCallbacks.RecipeKeep when callback.Message is not null:
+                await bot.EditMessageText(chatId, callback.Message.Id, "Хорошо, рецепт остаётся 🙂", cancellationToken: cancellationToken);
+                break;
+
             case var _ when BotCallbacks.MatchId(data, BotCallbacks.RecipePrefix) is { } recipeId:
                 await ShowRecipeAsync(chatId, user, recipeId, cancellationToken);
                 break;
@@ -172,6 +206,10 @@ public class BotUpdateHandler(
 
             case var _ when BotCallbacks.MatchId(data, BotCallbacks.DraftCancelPrefix) is { } draftId && callback.Message is not null:
                 await CancelDraftAsync(chatId, callback.Message.Id, user, draftId, cancellationToken);
+                break;
+
+            case var _ when BotCallbacks.MatchId(data, BotCallbacks.DraftEditPrefix) is { } draftId && callback.Message is not null:
+                await AskDraftCorrectionAsync(chatId, callback.Message.Id, user, draftId, cancellationToken);
                 break;
 
             case var _ when BotCallbacks.MatchId(data, BotCallbacks.DraftEstimatePrefix) is { } draftId && callback.Message is not null:
@@ -264,7 +302,100 @@ public class BotUpdateHandler(
         await bot.SendMessage(chatId, BotRecipeFormatter.FormatCard(result.Value, user.Id),
             parseMode: ParseMode.Html,
             linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true },
+            replyMarkup: BotKeyboards.RecipeActions(result.Value.Id, canDelete: result.Value.CreatedByUserId == user.Id),
             cancellationToken: cancellationToken);
+    }
+
+    /// <summary>Кнопка «Изменить»: спрашивает, что поменять. Id рецепта — в невидимой ссылке (BotCallbacks.RecipeEditLink).</summary>
+    private async Task AskRecipeEditAsync(long chatId, UserDto user, Guid recipeId, CancellationToken cancellationToken)
+    {
+        var recipe = await mediator.Send(new GetRecipeByIdQuery(recipeId, user.Id), cancellationToken);
+        if (recipe.IsFailed)
+        {
+            await ReportRecipeFailureAsync(chatId, user, recipe, "ask recipe edit", cancellationToken);
+            return;
+        }
+
+        await bot.SendMessage(chatId,
+            $"<a href=\"{BotCallbacks.RecipeEditLink(recipeId)}\">&#8203;</a>✏️ Что поменять в «{WebUtility.HtmlEncode(recipe.Value.Title)}»? " +
+            "Напиши ответом своими словами — покажу, что получится, и сохраню после твоего «ок».",
+            parseMode: ParseMode.Html,
+            linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true },
+            replyMarkup: BotKeyboards.RecipeEditReply(),
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task EditRecipeAsync(
+        long chatId, int promptMessageId, UserDto user, Guid recipeId, string change, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new EditRecipeCommand(recipeId, user.Id, change), cancellationToken);
+        if (result.IsFailed)
+        {
+            if (ErrorCodeOf(result) == ErrorCode.Validation)
+            {
+                await bot.SendMessage(chatId, "Слишком длинная правка — попробуй покороче.", cancellationToken: cancellationToken);
+                return;
+            }
+
+            await ReportRecipeFailureAsync(chatId, user, result, "edit recipe", cancellationToken);
+            return;
+        }
+
+        // Превью с изменениями пришлёт notifier — как для обычного черновика.
+        var quoted = change.Length > 200 ? change[..200] + "…" : change;
+        await bot.EditMessageText(chatId, promptMessageId, $"✏️ Готовлю изменения: «{quoted}»", cancellationToken: cancellationToken);
+    }
+
+    private async Task AskRecipeDeleteAsync(long chatId, UserDto user, Guid recipeId, CancellationToken cancellationToken)
+    {
+        var recipe = await mediator.Send(new GetRecipeByIdQuery(recipeId, user.Id), cancellationToken);
+        if (recipe.IsFailed)
+        {
+            await ReportRecipeFailureAsync(chatId, user, recipe, "ask recipe delete", cancellationToken);
+            return;
+        }
+
+        // Кнопку видит только автор, но старое сообщение могли переслать — проверяем ещё раз (окончательно — в команде).
+        if (recipe.Value.CreatedByUserId != user.Id)
+        {
+            await bot.SendMessage(chatId, "Удалить рецепт может только его автор.", cancellationToken: cancellationToken);
+            return;
+        }
+
+        await bot.SendMessage(chatId, $"Точно удалить «{recipe.Value.Title}»? Он пропадёт и у тебя, и у семьи.",
+            replyMarkup: BotKeyboards.ConfirmDeleteRecipe(recipeId), cancellationToken: cancellationToken);
+    }
+
+    private async Task DeleteRecipeAsync(long chatId, int confirmationMessageId, UserDto user, Guid recipeId, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new DeleteRecipeCommand(recipeId, user.Id), cancellationToken);
+        if (result.IsFailed)
+        {
+            await ReportRecipeFailureAsync(chatId, user, result, "delete recipe", cancellationToken);
+            return;
+        }
+
+        await bot.EditMessageText(chatId, confirmationMessageId, "🗑 Рецепт удалён.", cancellationToken: cancellationToken);
+    }
+
+    /// <summary>NotFound — рецепт удалили или автор ушёл из семьи; Forbidden — удалить может только автор.</summary>
+    private async Task ReportRecipeFailureAsync(
+        long chatId, UserDto user, ResultBase result, string action, CancellationToken cancellationToken)
+    {
+        var text = ErrorCodeOf(result) switch
+        {
+            ErrorCode.NotFound => "Этот рецепт больше недоступен 🤷",
+            ErrorCode.Forbidden => "Удалить рецепт может только его автор.",
+            _ => null,
+        };
+
+        if (text is null)
+        {
+            LogFailure(result, action, user);
+            text = GenericErrorText;
+        }
+
+        await bot.SendMessage(chatId, text, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -289,6 +420,76 @@ public class BotUpdateHandler(
             replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
     }
 
+    /// <summary>Кнопка «Исправить»: спрашивает, что поправить, и сразу открывает поле ответа.</summary>
+    private async Task AskDraftCorrectionAsync(long chatId, int previewMessageId, UserDto user, Guid draftId, CancellationToken cancellationToken)
+    {
+        var draft = await mediator.Send(new GetRecipeDraftQuery(draftId, user.Id), cancellationToken);
+        if (draft.IsFailed)
+        {
+            await ReportDraftFailureAsync(chatId, user, draft, "ask recipe draft correction", cancellationToken);
+            return;
+        }
+
+        if (draft.Value.IsBeingCorrected)
+        {
+            await bot.SendMessage(chatId, "⏳ Ещё применяю прошлую правку — пришлю обновлённую версию, тогда и продолжим.",
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        // Невидимая ссылка (&#8203; — пробел нулевой ширины) несёт Id черновика и превью — см. BotCallbacks.DraftEditLink.
+        var link = BotCallbacks.DraftEditLink(draftId, previewMessageId);
+        await bot.SendMessage(chatId,
+            $"<a href=\"{link}\">&#8203;</a>✏️ Что поправить в «{WebUtility.HtmlEncode(draft.Value.Title)}»? Напиши ответом своими словами.",
+            parseMode: ParseMode.Html,
+            linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true },
+            replyMarkup: BotKeyboards.CorrectionReply(),
+            cancellationToken: cancellationToken);
+    }
+
+    /// <param name="previewMessageId">Превью, к которому относится правка: у него убираем кнопки.</param>
+    /// <param name="promptMessageId">Сообщение «Что поправить?», если правка пришла через кнопку «Исправить».</param>
+    private async Task CorrectDraftAsync(
+        long chatId, UserDto user, Guid draftId, string correction, int previewMessageId, int? promptMessageId,
+        CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new CorrectRecipeDraftCommand(draftId, user.Id, correction), cancellationToken);
+        if (result.IsFailed)
+        {
+            if (ErrorCodeOf(result) == ErrorCode.Validation)
+            {
+                await bot.SendMessage(chatId, "Слишком длинная правка — попробуй покороче.", cancellationToken: cancellationToken);
+                return;
+            }
+
+            await ReportDraftFailureAsync(chatId, user, result, "correct recipe draft", cancellationToken);
+            return;
+        }
+
+        // Старое превью больше не актуально: убираем его кнопки, чтобы не сохранить прежнюю версию. Новое пришлёт notifier.
+        var quoted = correction.Length > 200 ? correction[..200] + "…" : correction;
+        var applying = $"✏️ Применяю правку: «{quoted}»";
+
+        if (promptMessageId is not { } promptId)
+        {
+            await bot.EditMessageText(chatId, previewMessageId, applying, cancellationToken: cancellationToken);
+            return;
+        }
+
+        // Через кнопку «Исправить»: превью оставляем читаемым, но без кнопок; «Что поправить?» заменяем на статус.
+        try
+        {
+            await bot.EditMessageReplyMarkup(chatId, previewMessageId, replyMarkup: null, cancellationToken: cancellationToken);
+        }
+        catch (ApiRequestException ex)
+        {
+            // Превью могли уже изменить (например, «Исправить» нажали дважды) — правке это не мешает.
+            logger.LogDebug(ex, "Could not remove buttons from recipe draft preview {MessageId}", previewMessageId);
+        }
+
+        await bot.EditMessageText(chatId, promptId, applying, cancellationToken: cancellationToken);
+    }
+
     private async Task ConfirmDraftAsync(long chatId, int messageId, UserDto user, Guid draftId, CancellationToken cancellationToken)
     {
         var result = await mediator.Send(new ConfirmRecipeDraftCommand(draftId, user.Id), cancellationToken);
@@ -300,13 +501,16 @@ public class BotUpdateHandler(
 
         // Превью превращается в карточку сохранённого рецепта — кнопки черновика исчезают.
         var recipe = await mediator.Send(new GetRecipeByIdQuery(result.Value, user.Id), cancellationToken);
-        var text = recipe.IsSuccess
-            ? "✅ Сохранил!\n\n" + BotRecipeFormatter.FormatCard(recipe.Value, user.Id)
-            : "✅ Рецепт сохранён!";
+        if (recipe.IsFailed)
+        {
+            await bot.EditMessageText(chatId, messageId, "✅ Рецепт сохранён!", cancellationToken: cancellationToken);
+            return;
+        }
 
-        await bot.EditMessageText(chatId, messageId, text,
+        await bot.EditMessageText(chatId, messageId, "✅ Сохранил!\n\n" + BotRecipeFormatter.FormatCard(recipe.Value, user.Id),
             parseMode: ParseMode.Html,
             linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true },
+            replyMarkup: BotKeyboards.RecipeActions(recipe.Value.Id, canDelete: recipe.Value.CreatedByUserId == user.Id),
             cancellationToken: cancellationToken);
     }
 
@@ -319,7 +523,7 @@ public class BotUpdateHandler(
             return;
         }
 
-        await bot.EditMessageText(chatId, messageId, "❌ Черновик удалён. Можешь прислать текст рецепта заново.",
+        await bot.EditMessageText(chatId, messageId, "❌ Отменил — ничего не сохранено.",
             cancellationToken: cancellationToken);
     }
 
@@ -353,6 +557,15 @@ public class BotUpdateHandler(
         {
             await bot.SendMessage(chatId,
                 "Этот черновик уже сохранён, отменён или устарел 🤷 Пришли текст рецепта заново, если нужно.",
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        // LogicConflict — черновик ещё разбирается или к нему применяется правка.
+        if (ErrorCodeOf(result) == ErrorCode.LogicConflict)
+        {
+            await bot.SendMessage(chatId,
+                "⏳ Ещё обрабатываю этот черновик — пришлю обновлённую версию, тогда и продолжим.",
                 cancellationToken: cancellationToken);
             return;
         }

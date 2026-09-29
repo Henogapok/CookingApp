@@ -12,4 +12,8 @@ public class NullRecipeDraftNotifier : IRecipeDraftNotifier
 
     public Task DraftFailedAsync(Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken) =>
         Task.CompletedTask;
+
+    public Task DraftCorrectionFailedAsync(
+        Guid draftId, Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
 }
