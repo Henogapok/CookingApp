@@ -72,7 +72,10 @@ public class ConfirmRecipeDraftCommandHandler(
         if (!validation.IsValid)
             return Result.Fail(new AppError(string.Join(" ", validation.Errors.Select(e => e.ErrorMessage)), ErrorCode.Validation));
 
-        var recipeId = await recipes.CreateAsync(request.UserId, fields, cancellationToken);
+        var recipeId = content.Value.RecipeId is { } editedId
+            ? (await recipes.UpdateAsync(editedId, request.UserId, fields, cancellationToken)).ToResult(editedId)
+            : await recipes.CreateAsync(request.UserId, fields, cancellationToken);
+
         if (recipeId.IsFailed)
             return recipeId;
 

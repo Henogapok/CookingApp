@@ -11,10 +11,21 @@ public interface IRecipeDraftRepositoryService
     /// <summary>Создаёт черновик (ещё не разобранный) и заодно удаляет просроченные.</summary>
     Task<Result<Guid>> CreateAsync(Guid userId, string sourceText, CancellationToken cancellationToken);
 
-    /// <summary>Для фонового разбора: исходный текст и автор, без проверки доступа.</summary>
+    /// <summary>Черновик изменения рецепта: сразу с текущей версией и правкой, которую надо применить.</summary>
+    Task<Result<Guid>> CreateForEditAsync(
+        Guid userId, string sourceText, RecipeDraftContent content, string correction, CancellationToken cancellationToken);
+
+    /// <summary>Для фонового разбора: исходный текст, автор, текущая версия и правка — без проверки доступа.</summary>
     Task<Result<RecipeDraftSource>> GetSourceAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>Сохраняет новую версию черновика и снимает отметку о правке.</summary>
     Task<Result> SetContentAsync(Guid id, RecipeDraftContent content, CancellationToken cancellationToken);
+
+    /// <summary>Запоминает правку. LogicConflict — черновик ещё разбирается или предыдущая правка не применена.</summary>
+    Task<Result> StartCorrectionAsync(Guid id, Guid userId, string correction, CancellationToken cancellationToken);
+
+    /// <summary>Для фонового разбора: правку применить не удалось — черновик остаётся прежним.</summary>
+    Task ClearCorrectionAsync(Guid id, CancellationToken cancellationToken);
 
     Task<Result<RecipeDraftContent>> GetContentAsync(Guid id, Guid userId, CancellationToken cancellationToken);
 
@@ -26,4 +37,6 @@ public interface IRecipeDraftRepositoryService
     Task DiscardAsync(Guid id, CancellationToken cancellationToken);
 }
 
-public record RecipeDraftSource(Guid Id, Guid UserId, string SourceText);
+/// <param name="Content">null — черновик ещё не разобран.</param>
+/// <param name="PendingCorrection">Правка, которую надо применить к Content.</param>
+public record RecipeDraftSource(Guid Id, Guid UserId, string SourceText, RecipeDraftContent? Content, string? PendingCorrection);

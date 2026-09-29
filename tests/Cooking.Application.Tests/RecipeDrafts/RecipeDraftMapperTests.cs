@@ -158,4 +158,41 @@ public class RecipeDraftMapperTests
         Assert.Equal(2, withEstimates.Servings);
         Assert.Equal(30, withEstimates.CookingTimeMinutes); // значение из текста оценка не перетирает
     }
+
+    [Fact]
+    public void ToCorrectionJson_UsesLlmCodesAndTagNames()
+    {
+        var content = Map(Parsed([Ingredient("Куриное филе", 500), Ingredient("Соль", null, null)], tags: ["Ужин"]));
+
+        var json = RecipeDraftMapper.ToCorrectionJson(content, new Dictionary<Guid, string> { [DinnerTagId] = "Ужин" });
+
+        Assert.Contains("\"name\":\"Куриное филе\",\"amount\":500,\"unit\":\"g\"", json);
+        Assert.Contains("\"name\":\"Соль\",\"amount\":null,\"unit\":null", json);
+        Assert.Contains("\"complexity\":\"easy\"", json);
+        Assert.Contains("\"tags\":[\"Ужин\"]", json);
+    }
+
+    [Fact]
+    public void FromRecipe_KeepsIngredientsStepsTagsAndLinkToRecipe()
+    {
+        var recipe = new RecipeDto(
+            Guid.NewGuid(), "Омлет", null, "https://example.com", ReferenceIds.SourceTypes.Website, "Website",
+            ReferenceIds.Complexities.Easy, "Easy", 2, 10, Guid.NewGuid(), "Аня", DateTime.UtcNow, DateTime.UtcNow,
+            [new RecipeIngredientDto(ChickenId, "Яйцо", 3, ReferenceIds.MeasurementUnits.Piece, "Штука", "шт", false, 165, "г", null)],
+            [new RecipeStepDto(1, "Взбить", null)],
+            [new Cooking.Application.Tags.TagDto(DinnerTagId, "Ужин", Guid.NewGuid(), "MealType")],
+            new Cooking.Application.Nutrition.RecipeNutrition(Cooking.Application.Nutrition.NutritionFacts.Zero, null, 0, 0, 0, []));
+
+        var content = RecipeDraftMapper.FromRecipe(recipe);
+
+        Assert.Equal(recipe.Id, content.RecipeId);
+        Assert.Equal(new RecipeDraftIngredient("Яйцо", ChickenId, null, 3, ReferenceIds.MeasurementUnits.Piece), Assert.Single(content.Ingredients));
+        Assert.Equal([new RecipeStepFields("Взбить", null)], content.Steps);
+        Assert.Equal([DinnerTagId], content.TagIds);
+
+        var fields = RecipeDraftMapper.ToRecipeFields(content, Catalog);
+        Assert.Equal("https://example.com", fields.SourceUrl);
+        Assert.Equal(ReferenceIds.SourceTypes.Website, fields.SourceTypeId);
+        Assert.Equal(2, fields.Servings);
+    }
 }

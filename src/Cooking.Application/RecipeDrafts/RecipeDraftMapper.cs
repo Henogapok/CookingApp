@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Cooking.Application.RecipeDrafts.Parsing;
 using Cooking.Application.Recipes;
 using Cooking.Domain.ReferenceData;
@@ -79,8 +81,8 @@ public static class RecipeDraftMapper
         new(
             content.Title,
             content.Description,
-            SourceUrl: null,
-            ReferenceIds.SourceTypes.Manual,
+            content.SourceUrl,
+            content.SourceTypeId ?? ReferenceIds.SourceTypes.Manual,
             content.ComplexityId,
             content.EffectiveServings,
             content.EffectiveCookingTimeMinutes,
@@ -92,6 +94,61 @@ public static class RecipeDraftMapper
                 .ToList(),
             content.Steps,
             content.TagIds);
+
+    /// <summary>
+    /// Черновик из сохранённого рецепта — отправная точка для его изменения. Порции/время считаем «указанными»:
+    /// рецепт их уже прошёл, оценивать заново нечего.
+    /// </summary>
+    public static RecipeDraftContent FromRecipe(RecipeDto recipe) =>
+        new(
+            recipe.Title,
+            recipe.Description,
+            recipe.ComplexityId,
+            recipe.Servings,
+            ServingsEstimate: null,
+            recipe.CookingTimeMinutes,
+            CookingTimeMinutesEstimate: null,
+            UseEstimates: false,
+            recipe.Ingredients
+                .Select(i => new RecipeDraftIngredient(i.IngredientName, i.IngredientCatalogId, null, i.Amount, i.UnitId))
+                .ToList(),
+            recipe.Steps.Select(s => new RecipeStepFields(s.Instruction, s.TimerSeconds)).ToList(),
+            recipe.Tags.Select(t => t.Id).ToList(),
+            recipe.Id,
+            recipe.SourceUrl,
+            recipe.SourceTypeId);
+
+    /// <summary>
+    /// Текущая версия черновика для LLM при правке — в тех же кодах, что и ответ (unit, complexity, названия тегов),
+    /// чтобы модель вернула её же с изменениями.
+    /// </summary>
+    public static string ToCorrectionJson(RecipeDraftContent content, IReadOnlyDictionary<Guid, string> tagNamesById)
+    {
+        var unitCodes = RecipeParsingCodes.Units.ToDictionary(x => x.Value, x => x.Key);
+        var complexityCodes = RecipeParsingCodes.Complexities.ToDictionary(x => x.Value, x => x.Key);
+
+        var recipe = new
+        {
+            title = content.Title,
+            description = content.Description,
+            complexity = complexityCodes.GetValueOrDefault(content.ComplexityId, "medium"),
+            servings = content.Servings,
+            servingsEstimate = content.ServingsEstimate,
+            cookingTimeMinutes = content.CookingTimeMinutes,
+            cookingTimeMinutesEstimate = content.CookingTimeMinutesEstimate,
+            ingredients = content.Ingredients.Select(i => new
+            {
+                name = i.Name,
+                amount = i.Amount,
+                unit = i.UnitId is { } unitId ? unitCodes.GetValueOrDefault(unitId) : null,
+            }),
+            steps = content.Steps.Select(s => new { instruction = s.Instruction, timerSeconds = s.TimerSeconds }),
+            tags = content.TagIds.Select(id => tagNamesById.GetValueOrDefault(id)).OfType<string>(),
+        };
+
+        // Кириллица без \uXXXX-экранирования — короче и понятнее модели.
+        return JsonSerializer.Serialize(recipe, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+    }
 
     private static RecipeDraftIngredient ToDraftIngredient(ParsedIngredient parsed, IReadOnlyDictionary<string, Guid> catalogIdsByKey)
     {
