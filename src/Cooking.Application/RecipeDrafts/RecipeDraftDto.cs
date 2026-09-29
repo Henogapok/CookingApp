@@ -4,6 +4,7 @@ using Cooking.Application.Recipes;
 namespace Cooking.Application.RecipeDrafts;
 
 /// <summary>Черновик для показа пользователю (превью в боте, экран в PWA).</summary>
+/// <param name="DishNumber">Блюдо номер DishNumber из DishCount, если в тексте их было несколько; иначе null.</param>
 public record RecipeDraftDto(
     Guid Id,
     string Title,
@@ -17,6 +18,8 @@ public record RecipeDraftDto(
     bool IsBeingCorrected,
     Guid? RecipeId,
     string? SourceUrl,
+    int? DishNumber,
+    int? DishCount,
     List<RecipeDraftIngredientDto> Ingredients,
     List<RecipeStepDto> Steps,
     List<string> TagNames,

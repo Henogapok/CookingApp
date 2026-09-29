@@ -31,6 +31,21 @@ public interface IRecipeDraftRepositoryService
     /// <summary>Сохраняет новую версию черновика и снимает отметку о правке.</summary>
     Task<Result> SetContentAsync(Guid id, RecipeDraftContent content, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Для фонового разбора: второе и следующие блюда из того же текста — отдельные черновики
+    /// с тем же автором, исходным текстом и ссылкой.
+    /// </summary>
+    Task<Result<Guid>> CreateSiblingAsync(Guid id, RecipeDraftContent content, CancellationToken cancellationToken);
+
+    /// <summary>Для фонового разбора: блюд слишком много — запоминает их названия и ждёт выбора пользователя.</summary>
+    Task<Result> SetDishChoicesAsync(Guid id, IReadOnlyList<string> dishes, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Пользователь выбрал блюда (номера в списке DishChoices, с нуля). LogicConflict — черновик не ждёт выбора
+    /// (уже выбрали или он разобран); Validation — номера нет в списке.
+    /// </summary>
+    Task<Result> SelectDishesAsync(Guid id, Guid userId, IReadOnlyList<int> dishIndexes, CancellationToken cancellationToken);
+
     /// <summary>Запоминает правку. LogicConflict — черновик ещё разбирается или предыдущая правка не применена.</summary>
     Task<Result> StartCorrectionAsync(Guid id, Guid userId, string correction, CancellationToken cancellationToken);
 
@@ -50,6 +65,8 @@ public interface IRecipeDraftRepositoryService
 /// <param name="Content">null — черновик ещё не разобран.</param>
 /// <param name="PendingCorrection">Правка, которую надо применить к Content.</param>
 /// <param name="IsSourceLoaded">false — текст ещё надо получить из видео (SourceUrl или MediaFilePath).</param>
+/// <param name="DishChoices">Не null — блюд было слишком много, пользователю предложено выбрать из этих.</param>
+/// <param name="SelectedDishes">Выбранные пользователем блюда — разобрать только их.</param>
 public record RecipeDraftSource(
     Guid Id,
     Guid UserId,
@@ -58,4 +75,10 @@ public record RecipeDraftSource(
     string? PendingCorrection,
     string? SourceUrl = null,
     string? MediaFilePath = null,
-    bool IsSourceLoaded = true);
+    bool IsSourceLoaded = true,
+    IReadOnlyList<string>? DishChoices = null,
+    IReadOnlyList<string>? SelectedDishes = null)
+{
+    /// <summary>Ждёт, пока пользователь выберет блюда, — разбирать пока нечего.</summary>
+    public bool IsAwaitingDishChoice => Content is null && DishChoices is not null && SelectedDishes is null;
+}

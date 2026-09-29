@@ -10,6 +10,10 @@ public class NullRecipeDraftNotifier : IRecipeDraftNotifier
 {
     public Task DraftReadyAsync(Guid draftId, Guid userId, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    public Task DishChoiceRequiredAsync(
+        Guid draftId, Guid userId, IReadOnlyList<string> dishes, CancellationToken cancellationToken) =>
+        Task.CompletedTask;
+
     public Task DraftFailedAsync(Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken) =>
         Task.CompletedTask;
 

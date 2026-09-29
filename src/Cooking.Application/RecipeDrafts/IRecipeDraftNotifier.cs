@@ -8,6 +8,12 @@ public interface IRecipeDraftNotifier
 {
     Task DraftReadyAsync(Guid draftId, Guid userId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Блюд больше, чем разбираем за раз: пользователь выбирает до RecipeDraftLimits.MaxDishes из списка
+    /// (SelectRecipeDraftDishesCommand), после чего придут превью выбранных.
+    /// </summary>
+    Task DishChoiceRequiredAsync(Guid draftId, Guid userId, IReadOnlyList<string> dishes, CancellationToken cancellationToken);
+
     /// <summary>Первый разбор не удался — черновика больше нет.</summary>
     Task DraftFailedAsync(Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken);
 

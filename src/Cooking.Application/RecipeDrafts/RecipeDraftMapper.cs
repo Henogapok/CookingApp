@@ -27,7 +27,7 @@ public static class RecipeDraftMapper
             .Replace('ё', 'е');
 
     /// <summary>
-    /// null — в ответе нет рецепта (LLM сам так решил или не нашлось ни названия, ни ингредиентов/шагов).
+    /// null — это не рецепт: нет ни названия, ни ингредиентов/шагов.
     /// </summary>
     /// <param name="catalogIdsByKey">Каталог ингредиентов: NameKey(название) → Id.</param>
     /// <param name="tagIdsByKey">Теги: NameKey(название) → Id.</param>
@@ -50,7 +50,7 @@ public static class RecipeDraftMapper
                 s.TimerSeconds > 0 ? s.TimerSeconds : null))
             .ToList();
 
-        if (!parsed.IsRecipe || string.IsNullOrEmpty(title) || (ingredients.Count == 0 && steps.Count == 0))
+        if (string.IsNullOrEmpty(title) || (ingredients.Count == 0 && steps.Count == 0))
             return null;
 
         var tagIds = (parsed.Tags ?? [])
@@ -149,6 +149,17 @@ public static class RecipeDraftMapper
         // Кириллица без \uXXXX-экранирования — короче и понятнее модели.
         return JsonSerializer.Serialize(recipe, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
     }
+
+    /// <summary>
+    /// Названия блюд, из которых пользователь выберет нужные: без пустых и повторов, обрезанные до лимитов.
+    /// </summary>
+    public static List<string> ToDishChoices(IEnumerable<string>? dishes) =>
+        (dishes ?? [])
+            .Select(d => Truncate(NullIfBlank(d), RecipeDraftLimits.MaxDishTitleLength))
+            .OfType<string>()
+            .DistinctBy(NameKey)
+            .Take(RecipeDraftLimits.MaxDishChoices)
+            .ToList();
 
     private static RecipeDraftIngredient ToDraftIngredient(ParsedIngredient parsed, IReadOnlyDictionary<string, Guid> catalogIdsByKey)
     {

@@ -26,6 +26,19 @@ public class BotRecipeDraftNotifier(
         await SendPreviewAsync(chatId, draftId, userId, cancellationToken);
     }
 
+    public async Task DishChoiceRequiredAsync(
+        Guid draftId, Guid userId, IReadOnlyList<string> dishes, CancellationToken cancellationToken)
+    {
+        if (await GetChatIdAsync(userId, cancellationToken) is not { } chatId)
+            return;
+
+        await bot.SendMessage(chatId,
+            $"🍽 Нашёл блюд: {dishes.Count}. За раз разбираю до {RecipeDraftLimits.MaxDishes} — " +
+            "отметь нужные и нажми «Разобрать выбранные».",
+            replyMarkup: BotKeyboards.DishChoice(draftId, dishes),
+            cancellationToken: cancellationToken);
+    }
+
     public async Task DraftCorrectionFailedAsync(
         Guid draftId, Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken)
     {

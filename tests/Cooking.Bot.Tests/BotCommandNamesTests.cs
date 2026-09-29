@@ -144,6 +144,37 @@ public class BotCommandNamesTests
     }
 
     [Fact]
+    public void DishCallbacks_FitTelegramLimitAndDoNotMixUp()
+    {
+        var draftId = Guid.NewGuid();
+
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(BotCallbacks.DishToggle(draftId, 29)) <= 64);
+        Assert.Equal((draftId, 29), BotCallbacks.ParseDishToggle(BotCallbacks.DishToggle(draftId, 29)));
+        Assert.Null(BotCallbacks.ParseDishToggle(BotCallbacks.DishGo(draftId)));
+        Assert.Equal(draftId, BotCallbacks.MatchId(BotCallbacks.DishGo(draftId), BotCallbacks.DishGoPrefix));
+    }
+
+    [Fact]
+    public void DishChoice_TogglesMarksUpToLimit_AndReportsSelected()
+    {
+        var draftId = Guid.NewGuid();
+        var keyboard = BotKeyboards.DishChoice(draftId, ["Сырники", "Омлет", "Борщ"]);
+        Assert.Empty(BotKeyboards.SelectedDishes(keyboard));
+
+        keyboard = BotKeyboards.ToggleDish(keyboard, draftId, 2, maxSelected: 2)!;
+        keyboard = BotKeyboards.ToggleDish(keyboard, draftId, 0, maxSelected: 2)!;
+        Assert.Equal([(0, "Сырники"), (2, "Борщ")], BotKeyboards.SelectedDishes(keyboard));
+
+        // Третье не отметить, а снять отметку — можно.
+        Assert.Null(BotKeyboards.ToggleDish(keyboard, draftId, 1, maxSelected: 2));
+        keyboard = BotKeyboards.ToggleDish(keyboard, draftId, 2, maxSelected: 2)!;
+        Assert.Equal([(0, "Сырники")], BotKeyboards.SelectedDishes(keyboard));
+
+        var lastRow = keyboard.InlineKeyboard.Last().Select(b => b.CallbackData);
+        Assert.Equal([BotCallbacks.DishGo(draftId), BotCallbacks.DraftCancel(draftId)], lastRow);
+    }
+
+    [Fact]
     public void RecipeEditLink_IsFoundInPromptAndDiffersFromDraftLink()
     {
         var recipeId = Guid.NewGuid();

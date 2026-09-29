@@ -383,6 +383,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 6. `ConfirmRecipeDraftCommand` — создаёт недостающие ингредиенты (`CreatedBySource = NutritionSource = LLM`, цена 0; в карточке помечены 🤖), сохраняет рецепт, удаляет черновик. До подтверждения ни в Recipe, ни в каталог ничего не пишется.
 
 8. Изменение сохранённого рецепта — `EditRecipeCommand` (доступ как на редактирование: автор и семья): черновик из рецепта (`RecipeDraftMapper.FromRecipe`, в `RecipeDraftContent.RecipeId` — ссылка на рецепт, источник сохраняется) сразу с правкой → дальше как п. 7; `ConfirmRecipeDraftCommand` для такого черновика вызывает `Update` вместо `Create`. В боте — кнопки под карточкой: «✏️ Изменить» (ForceReply «Что поменять?», Id рецепта в невидимой ссылке `https://recipe.invalid/{recipeId}`) и «🗑 Удалить» (только автору, с подтверждением; soft delete).
+- Несколько блюд в одном тексте (рацион дня, подборка, варианты начинок — каждый вариант отдельно; соус/гарнир — часть блюда): LLM отвечает `ParsedRecipes { Dishes, Recipes }`, каждое блюдо — свой черновик (первое — в исходный, остальные — `CreateSiblingAsync` с тем же текстом и ссылкой), в превью «Блюдо 2 из 3» (`RecipeDraftContent.DishNumber/DishCount`, правка их сохраняет). Блюд больше `RecipeDraftLimits.MaxDishes` (5) → LLM отдаёт только названия, черновик ждёт выбора (`RecipeDraft.DishChoicesJson`, `IRecipeDraftNotifier.DishChoiceRequiredAsync`); `SelectRecipeDraftDishesCommand` (`POST api/recipe-drafts/{id}/dishes`) → та же задача разбирает только выбранные (`SelectedDishesJson`). В боте выбор — кнопки ✅/⬜, отметки хранятся в самой клавиатуре (`BotKeyboards.ToggleDish`).
 - Черновик виден только автору, живёт сутки; просроченные удаляются при создании нового.
 - Очередь — в памяти процесса: задачи, не обработанные до перезапуска, теряются (черновик просто истечёт). Нужна надёжность — новая реализация `IRecipeParsingQueue` на брокере, команды не меняются.
 - Настройки — секция `Anthropic` (`Model`, `Effort`, `MaxTokens`, `RefusalFallback`) в appsettings: модель меняется конфигом. Ключ — только `dotnet user-secrets set "Anthropic:ApiKey" "<key>" --project src/Cooking.Api` (прод: `Anthropic__ApiKey`). Без ключа Api стартует, а разбор отвечает «не настроен».
@@ -396,7 +397,8 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Не скачалось → `VideoUnavailable`, бот просит прислать видео файлом (Bot API отдаёт ботам до 20 МБ); файл + подпись → `CreateRecipeDraftFromVideoCommand` → расшифровка того же пути, файл удаляется после.
 - `YtDlpVideoSourceLoader` — yt-dlp отдельным процессом (`-f ba/b -j --no-simulate`, только звук), singleton со скачиванием по одному. Настройки `YtDlp:Path` (по умолчанию `yt-dlp` из PATH), `YtDlp:CookiesFile` (если на VPS Instagram потребует вход — cookies отдельного аккаунта), `YtDlp:TimeoutSeconds`. Локально: `winget install yt-dlp.yt-dlp` (ставит и ffmpeg). В Docker — yt-dlp обновлять при сборке образа: Instagram регулярно ломает скачивание.
 - `OpenAiSpeechToText` — Whisper через HTTP (`OpenAI:TranscriptionModel`, по умолчанию `whisper-1`, язык не задаём). Ключ: `dotnet user-secrets set "OpenAI:ApiKey" "<key>" --project src/Cooking.Api` (прод: `OpenAI__ApiKey`).
-- Не решено: ролики с несколькими блюдами («рацион дня»); текст на экране (можно отправлять кадры Claude); кэш по ссылке.
+- Несколько блюд в ролике — см. «Разбор рецептов из текста».
+- Не решено: текст на экране (можно отправлять кадры Claude); кэш по ссылке.
 
 ## Docker (локальная разработка)
 

@@ -10,6 +10,7 @@ namespace Cooking.Application.RecipeDrafts;
 /// <param name="RecipeId">Черновик изменения сохранённого рецепта: при сохранении обновляется он, а не создаётся новый.</param>
 /// <param name="SourceUrl">Источник исходного рецепта — при изменении не теряется.</param>
 /// <param name="SourceTypeId">Тип источника исходного рецепта; null — Manual.</param>
+/// <param name="DishNumber">В тексте было несколько блюд: это блюдо номер DishNumber из DishCount (каждое — свой черновик).</param>
 public record RecipeDraftContent(
     string Title,
     string? Description,
@@ -24,7 +25,9 @@ public record RecipeDraftContent(
     List<Guid> TagIds,
     Guid? RecipeId = null,
     string? SourceUrl = null,
-    Guid? SourceTypeId = null)
+    Guid? SourceTypeId = null,
+    int? DishNumber = null,
+    int? DishCount = null)
 {
     public int? EffectiveServings => Servings ?? (UseEstimates ? ServingsEstimate : null);
 

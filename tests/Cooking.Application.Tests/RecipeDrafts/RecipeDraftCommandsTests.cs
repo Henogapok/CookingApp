@@ -18,16 +18,27 @@ public class RecipeDraftCommandsTests
 {
     private const string RecipeText = "Курица с солью: 500 г филе, соль по вкусу. Обжарить 10 минут.";
 
-    private sealed class FakeParser(Result<ParsedRecipe> result) : IRecipeTextParser
+    /// <summary>Отвечает по очереди; последний ответ повторяется.</summary>
+    private sealed class FakeParser(params Result<ParsedRecipes>[] results) : IRecipeTextParser
     {
+        private int _calls;
+
+        /// <summary>Один рецепт — как LLM отвечает на текст с одним блюдом.</summary>
+        public FakeParser(Result<ParsedRecipe> result)
+            : this(result.IsSuccess ? Result.Ok(Dishes(result.Value)) : result.ToResult<ParsedRecipes>())
+        {
+        }
+
         public RecipeParsingRequest? LastRequest { get; private set; }
 
-        public Task<Result<ParsedRecipe>> ParseAsync(RecipeParsingRequest request, CancellationToken cancellationToken)
+        public Task<Result<ParsedRecipes>> ParseAsync(RecipeParsingRequest request, CancellationToken cancellationToken)
         {
             LastRequest = request;
-            return Task.FromResult(result);
+            return Task.FromResult(results[Math.Min(_calls++, results.Length - 1)]);
         }
     }
+
+    private static ParsedRecipes Dishes(params ParsedRecipe[] recipes) => new(recipes.Select(r => r.Title).ToList(), recipes.ToList());
 
     private sealed class FakeNotifier : IRecipeDraftNotifier
     {
@@ -37,6 +48,14 @@ public class RecipeDraftCommandsTests
         public Task DraftReadyAsync(Guid draftId, Guid userId, CancellationToken cancellationToken)
         {
             Ready.Add(draftId);
+            return Task.CompletedTask;
+        }
+
+        public List<IReadOnlyList<string>> DishChoices { get; } = [];
+
+        public Task DishChoiceRequiredAsync(Guid draftId, Guid userId, IReadOnlyList<string> dishes, CancellationToken cancellationToken)
+        {
+            DishChoices.Add(dishes);
             return Task.CompletedTask;
         }
 
@@ -61,7 +80,6 @@ public class RecipeDraftCommandsTests
     }
 
     private static readonly ParsedRecipe ChickenRecipe = new(
-        IsRecipe: true,
         Title: "Жареная курица",
         Description: null,
         Complexity: "easy",
@@ -189,7 +207,7 @@ public class RecipeDraftCommandsTests
         var draftId = await CreateDraftAsync(context, userId);
         var notifier = new FakeNotifier();
 
-        await ParseAsync(context, draftId, new FakeParser(Result.Ok(ChickenRecipe with { IsRecipe = false })), notifier);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(new ParsedRecipes([], []))), notifier);
 
         Assert.Equal([RecipeDraftFailureReason.NotARecipe], notifier.Failed);
         Assert.Empty(context.RecipeDrafts);
@@ -202,12 +220,95 @@ public class RecipeDraftCommandsTests
         await using var _ = context;
         var draftId = await CreateDraftAsync(context, userId);
         var notifier = new FakeNotifier();
-        var parser = new FakeParser(Result.Fail(new AppError("no key", ErrorCode.Unavailable)));
+        var parser = new FakeParser(Result.Fail<ParsedRecipes>(new AppError("no key", ErrorCode.Unavailable)));
 
         await ParseAsync(context, draftId, parser, notifier);
 
         Assert.Equal([RecipeDraftFailureReason.ParserUnavailable], notifier.Failed);
         Assert.Empty(context.RecipeDrafts);
+    }
+
+    private static Task<Result> SelectDishesAsync(CookingDbContext context, Guid draftId, Guid userId, params int[] indexes) =>
+        new SelectRecipeDraftDishesCommandHandler(new RecipeDraftRepositoryService(context), new NoopQueue())
+            .Handle(new SelectRecipeDraftDishesCommand(draftId, userId, indexes.ToList()), CancellationToken.None);
+
+    [Fact]
+    public async Task Parse_SeveralDishes_CreatesNumberedDraftPerDish_EachSavableAndCorrectable()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = await CreateDraftAsync(context, userId);
+        var omelette = ChickenRecipe with { Title = "Омлет" };
+        var notifier = new FakeNotifier();
+
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(Dishes(ChickenRecipe, omelette))), notifier);
+
+        Assert.Equal(2, notifier.Ready.Count);
+        Assert.Equal(draftId, notifier.Ready[0]);
+        var repository = new RecipeDraftRepositoryService(context);
+        var first = (await repository.GetByIdAsync(notifier.Ready[0], userId, CancellationToken.None)).Value;
+        var second = (await repository.GetByIdAsync(notifier.Ready[1], userId, CancellationToken.None)).Value;
+        Assert.Equal(("Жареная курица", 1, 2), (first.Title, first.DishNumber!.Value, first.DishCount!.Value));
+        Assert.Equal(("Омлет", 2, 2), (second.Title, second.DishNumber!.Value, second.DishCount!.Value));
+        Assert.All(context.RecipeDrafts, d => Assert.Equal(RecipeText, d.SourceText)); // правке нужен исходный текст
+
+        // Правка второго блюда: номер не слетает.
+        await CorrectAsync(context, second.Id, userId, "без лука");
+        await ParseAsync(context, second.Id, new FakeParser(Result.Ok(omelette with { Title = "Омлет без лука" })), new FakeNotifier());
+        var corrected = (await repository.GetByIdAsync(second.Id, userId, CancellationToken.None)).Value;
+        Assert.Equal(("Омлет без лука", 2), (corrected.Title, corrected.DishNumber!.Value));
+
+        Assert.True((await ConfirmAsync(context, second.Id, userId)).IsSuccess);
+        Assert.Equal([draftId], context.RecipeDrafts.Select(d => d.Id)); // первое блюдо ждёт своего решения
+    }
+
+    [Fact]
+    public async Task Parse_TooManyDishes_AsksChoice_ThenParsesOnlySelected()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = await CreateDraftAsync(context, userId);
+        var titles = new List<string> { "Сырники", "Омлет", "Борщ", "Плов", "Салат", "Суп", "Каша" };
+        var parser = new FakeParser(
+            Result.Ok(new ParsedRecipes(titles, [])),
+            Result.Ok(Dishes(ChickenRecipe with { Title = "Омлет" }, ChickenRecipe with { Title = "Плов" })));
+        var notifier = new FakeNotifier();
+
+        await ParseAsync(context, draftId, parser, notifier);
+
+        Assert.Equal([titles], notifier.DishChoices);
+        Assert.Empty(notifier.Ready);
+        AssertError(await new RecipeDraftRepositoryService(context).GetByIdAsync(draftId, userId, CancellationToken.None), ErrorCode.LogicConflict);
+
+        // Повторная задача, пока пользователь не выбрал, LLM не дёргает.
+        await ParseAsync(context, draftId, parser, notifier);
+        Assert.Single(notifier.DishChoices);
+
+        Assert.True((await SelectDishesAsync(context, draftId, userId, 3, 1)).IsSuccess);
+        await ParseAsync(context, draftId, parser, notifier);
+
+        Assert.Equal(["Омлет", "Плов"], parser.LastRequest!.SelectedDishes);
+        Assert.Equal(2, notifier.Ready.Count);
+        Assert.Equal(2, context.RecipeDrafts.Count());
+
+        // Выбор уже сделан — второй раз нельзя.
+        AssertError(await SelectDishesAsync(context, draftId, userId, 0), ErrorCode.LogicConflict);
+    }
+
+    [Fact]
+    public async Task SelectDishes_UnknownIndexOrDraftNotWaiting_IsRejected()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var waitingId = await CreateDraftAsync(context, userId);
+        var titles = Enumerable.Range(1, 6).Select(i => $"Блюдо {i}").ToList();
+        await ParseAsync(context, waitingId, new FakeParser(Result.Ok(new ParsedRecipes(titles, []))), new FakeNotifier());
+        var parsedId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, parsedId, new FakeParser(Result.Ok(ChickenRecipe)), new FakeNotifier());
+
+        AssertError(await SelectDishesAsync(context, waitingId, userId, 6), ErrorCode.Validation);
+        AssertError(await SelectDishesAsync(context, waitingId, Guid.NewGuid(), 0), ErrorCode.NotFound);
+        AssertError(await SelectDishesAsync(context, parsedId, userId, 0), ErrorCode.LogicConflict);
     }
 
     [Fact]
@@ -449,7 +550,7 @@ public class RecipeDraftCommandsTests
         await CorrectAsync(context, draftId, userId, "соли не надо");
         var notifier = new FakeNotifier();
 
-        await ParseAsync(context, draftId, new FakeParser(Result.Fail(new AppError("timeout", ErrorCode.ExternalService))), notifier);
+        await ParseAsync(context, draftId, new FakeParser(Result.Fail<ParsedRecipes>(new AppError("timeout", ErrorCode.ExternalService))), notifier);
 
         Assert.Equal([RecipeDraftFailureReason.ParserError], notifier.CorrectionFailed);
         Assert.Empty(notifier.Failed);

@@ -92,7 +92,8 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
         return Result.Ok(new RecipeDraftSource(
             draft.Id, draft.UserId, draft.SourceText, content?.Value, draft.PendingCorrection,
-            draft.SourceUrl, draft.MediaFilePath, draft.IsSourceLoaded));
+            draft.SourceUrl, draft.MediaFilePath, draft.IsSourceLoaded,
+            DeserializeList(draft.DishChoicesJson), DeserializeList(draft.SelectedDishesJson)));
     }
 
     public async Task<Result> SetContentAsync(Guid id, RecipeDraftContent content, CancellationToken cancellationToken)
@@ -103,6 +104,63 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
         draft.ContentJson = JsonSerializer.Serialize(content, JsonOptions);
         draft.PendingCorrection = null;
+        // Выбор блюд отработал — дальше это обычный черновик.
+        draft.DishChoicesJson = null;
+        draft.SelectedDishesJson = null;
+        await dataContext.SaveChangesAsync(cancellationToken);
+
+        return Result.Ok();
+    }
+
+    public async Task<Result<Guid>> CreateSiblingAsync(Guid id, RecipeDraftContent content, CancellationToken cancellationToken)
+    {
+        var original = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
+        if (original is null)
+            return DraftNotFound(id);
+
+        var sibling = new RecipeDraft
+        {
+            UserId = original.UserId,
+            SourceText = original.SourceText,
+            SourceUrl = original.SourceUrl,
+            ContentJson = JsonSerializer.Serialize(content, JsonOptions),
+            ExpiresAt = original.ExpiresAt,
+        };
+        dataContext.RecipeDrafts.Add(sibling);
+        await dataContext.SaveChangesAsync(cancellationToken);
+
+        return Result.Ok(sibling.Id);
+    }
+
+    public async Task<Result> SetDishChoicesAsync(Guid id, IReadOnlyList<string> dishes, CancellationToken cancellationToken)
+    {
+        var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
+        if (draft is null)
+            return DraftNotFound(id);
+
+        draft.DishChoicesJson = JsonSerializer.Serialize(dishes, JsonOptions);
+        draft.SelectedDishesJson = null;
+        await dataContext.SaveChangesAsync(cancellationToken);
+
+        return Result.Ok();
+    }
+
+    public async Task<Result> SelectDishesAsync(
+        Guid id, Guid userId, IReadOnlyList<int> dishIndexes, CancellationToken cancellationToken)
+    {
+        var draft = await FindOwnAsync(id, userId, cancellationToken, requireParsed: false);
+        if (draft.IsFailed)
+            return draft.ToResult();
+
+        var choices = DeserializeList(draft.Value.DishChoicesJson);
+        if (choices is null || draft.Value.SelectedDishesJson is not null || draft.Value.ContentJson is not null)
+            return Result.Fail(new AppError($"Recipe draft '{id}' is not waiting for a dish choice.", ErrorCode.LogicConflict));
+
+        if (dishIndexes.Any(i => i < 0 || i >= choices.Count))
+            return Result.Fail(new AppError($"Recipe draft '{id}' has only {choices.Count} dishes to choose from.", ErrorCode.Validation));
+
+        var selected = dishIndexes.Distinct().Order().Select(i => choices[i]).ToList();
+        draft.Value.SelectedDishesJson = JsonSerializer.Serialize(selected, JsonOptions);
         await dataContext.SaveChangesAsync(cancellationToken);
 
         return Result.Ok();
@@ -211,6 +269,8 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             IsBeingCorrected: draft.Value.PendingCorrection is not null,
             c.RecipeId,
             c.SourceUrl,
+            c.DishNumber,
+            c.DishCount,
             c.Ingredients
                 .Select((i, index) =>
                 {
@@ -281,6 +341,9 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
         JsonSerializer.Deserialize<RecipeDraftContent>(draft.ContentJson!, JsonOptions) is { } content
             ? Result.Ok(content)
             : Result.Fail(new AppError($"Recipe draft '{draft.Id}' has invalid content.", ErrorCode.LogicConflict));
+
+    private static List<string>? DeserializeList(string? json) =>
+        json is null ? null : JsonSerializer.Deserialize<List<string>>(json, JsonOptions);
 
     private static Result DraftNotFound(Guid id) =>
         Result.Fail(new AppError($"Recipe draft with id '{id}' was not found.", ErrorCode.NotFound));

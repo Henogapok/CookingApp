@@ -20,10 +20,8 @@ public class RecipeDraftMapperTests
         List<ParsedIngredient>? ingredients = null,
         List<ParsedStep>? steps = null,
         List<string>? tags = null,
-        bool isRecipe = true,
         string title = "Курица с луком") =>
         new(
-            isRecipe,
             title,
             Description: "  ",
             Complexity: "easy",
@@ -123,7 +121,6 @@ public class RecipeDraftMapperTests
     [Fact]
     public void ToDraftContent_NotARecipe_ReturnsNull()
     {
-        Assert.Null(RecipeDraftMapper.ToDraftContent(Parsed(isRecipe: false), Catalog, Tags));
         Assert.Null(RecipeDraftMapper.ToDraftContent(Parsed(title: " "), Catalog, Tags));
         Assert.Null(RecipeDraftMapper.ToDraftContent(Parsed(ingredients: [], steps: []), Catalog, Tags));
     }
