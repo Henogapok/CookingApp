@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Ещё нет: авторизации (пока `UserId` передаётся в запросе), Reels, PWA.
+Ещё нет: авторизации (пока `UserId` передаётся в запросе), PWA.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -388,6 +388,15 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Настройки — секция `Anthropic` (`Model`, `Effort`, `MaxTokens`, `RefusalFallback`) в appsettings: модель меняется конфигом. Ключ — только `dotnet user-secrets set "Anthropic:ApiKey" "<key>" --project src/Cooking.Api` (прод: `Anthropic__ApiKey`). Без ключа Api стартует, а разбор отвечает «не настроен».
 7. Правка — `CorrectRecipeDraftCommand`: текст правки пишется в `RecipeDraft.PendingCorrection`, в очередь уходит та же `RecipeParsingJob(DraftId)`. `ParseRecipeDraftCommand` видит правку и отправляет LLM исходный текст + текущую версию (`RecipeDraftMapper.ToCorrectionJson`) + правку; ответ проходит тот же маппер. Пока правка не применена, черновик нельзя сохранить/оценить/править повторно (LogicConflict), но можно показать. Неудачная правка черновик не удаляет — остаётся прежняя версия (`IRecipeDraftNotifier.DraftCorrectionFailedAsync`).
 - В боте правка — ответ (reply) на сообщение с превью: Id черновика бот достаёт из кнопок превью, которые Telegram присылает вместе с `reply_to_message` (`BotCallbacks.FindDraftId`) — состояние не хранится. Старое превью редактируется в «✏️ Применяю правку…» без кнопок. Кнопка «✏️ Исправить» присылает «Что поправить?» с ForceReply; Id черновика и превью спрятаны в невидимой ссылке `https://draft.invalid/{draftId}/{previewMessageId}` (`BotCallbacks.DraftEditLink`), которую Telegram тоже возвращает в `reply_to_message`.
+
+## Рецепты из Instagram Reels
+
+- Ссылка на Reels в сообщении (`RecipeSourceText.FindInstagramLink` — нормализует к `https://www.instagram.com/reel/{код}/`) → `CreateRecipeDraftFromUrlCommand`: черновик с `SourceUrl`, `IsSourceLoaded = false` → та же очередь. `ParseRecipeDraftCommand` сначала получает текст: `IVideoSourceLoader` (описание + звук) и `ISpeechToText` (расшифровка) → `RecipeSourceText.Build` («Описание под видео» + «Расшифровка речи»), дальше обычный разбор. Рецепт получает `SourceUrl` и тип Instagram.
+- Рецепт бывает и в описании, и только в речи — берём оба. Нет ни того, ни другого (музыка + пустое описание) → `NoTextInVideo`. Расшифровка не обязательна: без ключа OpenAI работаем по описанию.
+- Не скачалось → `VideoUnavailable`, бот просит прислать видео файлом (Bot API отдаёт ботам до 20 МБ); файл + подпись → `CreateRecipeDraftFromVideoCommand` → расшифровка того же пути, файл удаляется после.
+- `YtDlpVideoSourceLoader` — yt-dlp отдельным процессом (`-f ba/b -j --no-simulate`, только звук), singleton со скачиванием по одному. Настройки `YtDlp:Path` (по умолчанию `yt-dlp` из PATH), `YtDlp:CookiesFile` (если на VPS Instagram потребует вход — cookies отдельного аккаунта), `YtDlp:TimeoutSeconds`. Локально: `winget install yt-dlp.yt-dlp` (ставит и ffmpeg). В Docker — yt-dlp обновлять при сборке образа: Instagram регулярно ломает скачивание.
+- `OpenAiSpeechToText` — Whisper через HTTP (`OpenAI:TranscriptionModel`, по умолчанию `whisper-1`, язык не задаём). Ключ: `dotnet user-secrets set "OpenAI:ApiKey" "<key>" --project src/Cooking.Api` (прод: `OpenAI__ApiKey`).
+- Не решено: ролики с несколькими блюдами («рацион дня»); текст на экране (можно отправлять кадры Claude); кэш по ссылке.
 
 ## Docker (локальная разработка)
 

@@ -4,6 +4,7 @@ using Cooking.Application.Ingredients;
 using Cooking.Application.MeasurementUnits;
 using Cooking.Application.RecipeDrafts;
 using Cooking.Application.RecipeDrafts.Parsing;
+using Cooking.Application.RecipeDrafts.Sources;
 using Cooking.Application.Recipes;
 using Cooking.Application.ReferenceData;
 using Cooking.Application.Tags;
@@ -44,6 +45,16 @@ public static class DependencyInjection
         services.AddSingleton<InProcessRecipeParsingQueue>();
         services.AddSingleton<IRecipeParsingQueue>(sp => sp.GetRequiredService<InProcessRecipeParsingQueue>());
         services.AddHostedService<RecipeParsingBackgroundService>();
+
+        // Reels: yt-dlp (singleton — внутри ограничение «по одному скачиванию») + расшифровка речи.
+        services.Configure<YtDlpOptions>(configuration.GetSection(YtDlpOptions.SectionName));
+        services.Configure<OpenAiOptions>(configuration.GetSection(OpenAiOptions.SectionName));
+        services.AddSingleton<IVideoSourceLoader, YtDlpVideoSourceLoader>();
+        services.AddHttpClient<ISpeechToText, OpenAiSpeechToText>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.openai.com/");
+            client.Timeout = TimeSpan.FromMinutes(2);
+        });
 
         // Реализация по умолчанию; бот (если настроен) регистрирует свою — TryAdd не перетрёт её при любом порядке.
         services.TryAddScoped<IRecipeDraftNotifier, NullRecipeDraftNotifier>();

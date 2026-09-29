@@ -16,6 +16,7 @@ public record RecipeDraftDto(
     bool CanApplyEstimates,
     bool IsBeingCorrected,
     Guid? RecipeId,
+    string? SourceUrl,
     List<RecipeDraftIngredientDto> Ingredients,
     List<RecipeStepDto> Steps,
     List<string> TagNames,

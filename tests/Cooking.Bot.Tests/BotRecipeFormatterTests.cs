@@ -198,13 +198,15 @@ public class BotRecipeFormatterTests
         bool servingsIsEstimate = false,
         int? cookingTimeMinutes = 90,
         List<RecipeDraftIngredientDto>? ingredients = null,
-        Guid? recipeId = null) =>
+        Guid? recipeId = null,
+        string? sourceUrl = null) =>
         new(
             Guid.NewGuid(), "Плов <узбекский>", null, "Medium",
             servings, servingsIsEstimate, cookingTimeMinutes, CookingTimeIsEstimate: false,
             CanApplyEstimates: servings is null,
             IsBeingCorrected: false,
             RecipeId: recipeId,
+            SourceUrl: sourceUrl,
             ingredients ?? [DraftIngredient("Рис", 500, "г", isNew: false)],
             [new RecipeStepDto(1, "Обжарить мясо", null)],
             ["Ужин"],
@@ -293,6 +295,16 @@ public class BotRecipeFormatterTests
         Assert.Contains("<blockquote expandable>1. Варить ⏲ 10 мин</blockquote>", card);
         Assert.DoesNotContain("🔥", card.Split("<blockquote")[0]); // КБЖУ — после ингредиентов,
         Assert.DoesNotContain("<blockquote", card.Split("🔥")[1].Split("<b>Приготовление")[0]); // но вне цитаты
+    }
+
+    [Fact]
+    public void FormatDraft_WithSourceUrl_ShowsLinkBeforeHint()
+    {
+        var text = BotRecipeFormatter.FormatDraft(CreateDraft(sourceUrl: "https://www.instagram.com/reel/abc/"));
+
+        Assert.Contains("🔗 <a href=\"https://www.instagram.com/reel/abc/\">Источник</a>", text);
+        Assert.EndsWith(BotRecipeFormatter.DraftCorrectionHint, text);
+        Assert.DoesNotContain("Источник", BotRecipeFormatter.FormatDraft(CreateDraft()));
     }
 
     [Fact]

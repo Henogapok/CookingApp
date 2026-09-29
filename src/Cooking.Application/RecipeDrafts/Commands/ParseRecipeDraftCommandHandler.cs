@@ -1,6 +1,8 @@
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Ingredients;
 using Cooking.Application.RecipeDrafts.Parsing;
+using Cooking.Application.RecipeDrafts.Sources;
+using Cooking.Domain.ReferenceData;
 using Cooking.Application.Tags;
 using FluentResults;
 using MediatR;
@@ -12,7 +14,9 @@ public class ParseRecipeDraftCommandHandler(
     IIngredientCatalogRepositoryService catalog,
     ITagRepositoryService tags,
     IRecipeTextParser parser,
-    IRecipeDraftNotifier notifier)
+    IRecipeDraftNotifier notifier,
+    IVideoSourceLoader videoLoader,
+    ISpeechToText speechToText)
     : IRequestHandler<ParseRecipeDraftCommand, Result>
 {
     public async Task<Result> Handle(ParseRecipeDraftCommand request, CancellationToken cancellationToken)
@@ -28,6 +32,17 @@ public class ParseRecipeDraftCommandHandler(
             return Result.Ok();
 
         var isCorrection = source.Content is not null;
+
+        // Черновик из видео: сначала получаем текст (описание + расшифровка), дальше — как с обычным текстом.
+        if (!source.IsSourceLoaded)
+        {
+            var (text, failure) = await LoadVideoTextAsync(source, cancellationToken);
+            if (text is null)
+                return await FailAsync(source, isCorrection: false, failure.Reason, failure.Error, cancellationToken);
+
+            await drafts.SetSourceTextAsync(source.Id, text, cancellationToken);
+            source = source with { SourceText = text, MediaFilePath = null, IsSourceLoaded = true };
+        }
 
         var catalogResult = await catalog.GetAllAsync(cancellationToken);
         var tagsResult = await tags.GetAllAsync(null, cancellationToken);
@@ -65,6 +80,10 @@ public class ParseRecipeDraftCommandHandler(
             return Result.Ok();
         }
 
+        // Рецепт из Reels помнит, откуда он.
+        if (!isCorrection && source.SourceUrl is not null)
+            content = content with { SourceUrl = source.SourceUrl, SourceTypeId = ReferenceIds.SourceTypes.Instagram };
+
         // После правки не должны слетать «Оценить» и привязка к изменяемому рецепту (с его источником).
         if (isCorrection)
         {
@@ -87,6 +106,68 @@ public class ParseRecipeDraftCommandHandler(
     }
 
     /// <summary>
+    /// Текст из видео: описание (из Instagram или из подписи к присланному файлу) + расшифровка речи.
+    /// Text = null — не получилось: видео не скачалось (VideoUnavailable) или текста нет ни там, ни там (NoTextInVideo).
+    /// Расшифровка не обязательна: без ключа или при сбое сервиса работаем по одному описанию.
+    /// </summary>
+    private async Task<(string? Text, (RecipeDraftFailureReason Reason, Result Error) Failure)> LoadVideoTextAsync(
+        RecipeDraftSource source, CancellationToken cancellationToken)
+    {
+        string? caption;
+        string? transcript;
+
+        if (source.MediaFilePath is { } mediaFile)
+        {
+            caption = source.SourceText;
+            try
+            {
+                transcript = await TranscribeAsync(mediaFile, cancellationToken);
+            }
+            finally
+            {
+                TryDelete(mediaFile);
+            }
+        }
+        else if (source.SourceUrl is { } url)
+        {
+            var video = await videoLoader.LoadAsync(url, cancellationToken);
+            if (video.IsFailed)
+                return (null, (RecipeDraftFailureReason.VideoUnavailable, video.ToResult()));
+
+            using var _ = video.Value;
+            caption = video.Value.Caption;
+            transcript = video.Value.AudioFilePath is { } audio ? await TranscribeAsync(audio, cancellationToken) : null;
+        }
+        else
+        {
+            caption = source.SourceText;
+            transcript = null;
+        }
+
+        return RecipeSourceText.Build(caption, transcript) is { } text
+            ? (text, default)
+            : (null, (RecipeDraftFailureReason.NoTextInVideo, Result.Ok())); // не ошибка сервиса — просто нечего разбирать
+    }
+
+    private async Task<string?> TranscribeAsync(string mediaFile, CancellationToken cancellationToken)
+    {
+        var transcript = await speechToText.TranscribeAsync(mediaFile, cancellationToken);
+        return transcript.IsSuccess ? transcript.Value : null;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
+            // Временный файл — не страшно, если не удалился сразу.
+        }
+    }
+
+    /// <summary>
     /// Неудачный первый разбор удаляет черновик; неудачная правка — только снимает её, прежняя версия остаётся.
     /// </summary>
     private async Task<Result> FailAsync(
@@ -99,6 +180,9 @@ public class ParseRecipeDraftCommandHandler(
         }
         else
         {
+            if (source.MediaFilePath is { } mediaFile)
+                TryDelete(mediaFile);
+
             await drafts.DiscardAsync(source.Id, cancellationToken);
             await notifier.DraftFailedAsync(source.UserId, reason, cancellationToken);
         }

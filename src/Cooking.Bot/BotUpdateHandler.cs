@@ -5,6 +5,7 @@ using Cooking.Application.Families.Queries;
 using Cooking.Application.RecipeDrafts;
 using Cooking.Application.RecipeDrafts.Commands;
 using Cooking.Application.RecipeDrafts.Queries;
+using Cooking.Application.RecipeDrafts.Sources;
 using Cooking.Application.Recipes;
 using Cooking.Application.Recipes.Commands;
 using Cooking.Application.Recipes.Queries;
@@ -33,6 +34,8 @@ public class BotUpdateHandler(
 {
     private const string GenericErrorText = "Что-то пошло не так 😔 Попробуй ещё раз чуть позже.";
 
+    private const long MaxBotDownloadBytes = 20 * 1024 * 1024;
+
     /// <summary>Текст короче — скорее случайное сообщение, чем рецепт: не тратим на него запрос к LLM.</summary>
     private const int MinRecipeTextLength = 40;
 
@@ -40,6 +43,11 @@ public class BotUpdateHandler(
     {
         switch (update)
         {
+            // Видео файлом — запасной путь, когда Reels по ссылке скачать не удалось.
+            case { Message: { From: { } from, Chat.Type: ChatType.Private } message } when IsVideo(message):
+                await HandleVideoAsync(message, from, cancellationToken);
+                break;
+
             case { Message: { Text: { } text, From: { } from, Chat.Type: ChatType.Private } message }:
                 await HandleMessageAsync(message.Chat.Id, from, text.Trim(), message.ReplyToMessage, cancellationToken);
                 break;
@@ -99,8 +107,12 @@ public class BotUpdateHandler(
                 await SearchRecipesAsync(chatId, user, query, cancellationToken);
                 break;
 
+            // Ответ на «Пришли текст рецепта» — текст или ссылка на Reels.
             case var recipeText when replyTo is { From.IsBot: true, Text: BotTexts.RecipePrompt }:
-                await CreateDraftAsync(chatId, user, recipeText, cancellationToken);
+                if (RecipeSourceText.FindInstagramLink(recipeText) is { } promptReelUrl)
+                    await CreateDraftFromUrlAsync(chatId, user, promptReelUrl, cancellationToken);
+                else
+                    await CreateDraftAsync(chatId, user, recipeText, cancellationToken);
                 break;
 
             // Ответ на превью черновика — правка («лука не надо, порций 4»).
@@ -131,6 +143,10 @@ public class BotUpdateHandler(
 
             case BotButtons.MyFamily:
                 await ShowFamilyAsync(chatId, user, cancellationToken);
+                break;
+
+            case var withLink when RecipeSourceText.FindInstagramLink(withLink) is { } reelUrl:
+                await CreateDraftFromUrlAsync(chatId, user, reelUrl, cancellationToken);
                 break;
 
             // Обычный текст без команды — это рецепт (поиск — только через /search или «Найти рецепт»).
@@ -490,6 +506,71 @@ public class BotUpdateHandler(
         await bot.EditMessageText(chatId, promptId, applying, cancellationToken: cancellationToken);
     }
 
+    private async Task CreateDraftFromUrlAsync(long chatId, UserDto user, string url, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new CreateRecipeDraftFromUrlCommand(user.Id, url), cancellationToken);
+        if (result.IsFailed)
+        {
+            LogFailure(result, "create recipe draft from url", user);
+            await bot.SendMessage(chatId, GenericErrorText, cancellationToken: cancellationToken);
+            return;
+        }
+
+        await bot.SendMessage(chatId, "⏳ Скачиваю видео и слушаю, что в нём говорят — обычно это меньше минуты.",
+            replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
+    }
+
+    private static bool IsVideo(Message message) =>
+        message.Video is not null || message.Document?.MimeType?.StartsWith("video/", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
+    /// Видео, присланное файлом: скачиваем его из Telegram во временную папку, а расшифровка и разбор — в фоне,
+    /// как у ссылки. Описание можно прислать подписью к видео.
+    /// </summary>
+    private async Task HandleVideoAsync(Message message, TelegramUser from, CancellationToken cancellationToken)
+    {
+        var chatId = message.Chat.Id;
+        var user = await RegisterAsync(from, cancellationToken);
+        if (user is null)
+        {
+            await bot.SendMessage(chatId, GenericErrorText, cancellationToken: cancellationToken);
+            return;
+        }
+
+        var (fileId, fileSize, fileName) = message.Video is { } video
+            ? (video.FileId, video.FileSize, video.FileName)
+            : (message.Document!.FileId, message.Document.FileSize, message.Document.FileName);
+
+        // Bot API отдаёт ботам файлы только до 20 МБ.
+        if (fileSize > MaxBotDownloadBytes)
+        {
+            await bot.SendMessage(chatId,
+                "Видео больше 20 МБ — Telegram не даёт ботам скачивать такие 😔 Попробуй ролик покороче или пришли рецепт текстом.",
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        var directory = Path.Combine(Path.GetTempPath(), "cooking-media");
+        Directory.CreateDirectory(directory);
+        var extension = Path.GetExtension(fileName);
+        var path = Path.Combine(directory, Guid.NewGuid().ToString("N") + (string.IsNullOrEmpty(extension) ? ".mp4" : extension));
+
+        await using (var file = File.Create(path))
+            await bot.GetInfoAndDownloadFile(fileId, file, cancellationToken);
+
+        var result = await mediator.Send(new CreateRecipeDraftFromVideoCommand(user.Id, path, message.Caption), cancellationToken);
+        if (result.IsFailed)
+        {
+            File.Delete(path);
+            LogFailure(result, "create recipe draft from video", user);
+            await bot.SendMessage(chatId, GenericErrorText, cancellationToken: cancellationToken);
+            return;
+        }
+
+        await bot.SendMessage(chatId, "⏳ Слушаю видео — обычно это меньше минуты.",
+            replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
+    }
+
     private async Task ConfirmDraftAsync(long chatId, int messageId, UserDto user, Guid draftId, CancellationToken cancellationToken)
     {
         var result = await mediator.Send(new ConfirmRecipeDraftCommand(draftId, user.Id), cancellationToken);
@@ -542,6 +623,7 @@ public class BotUpdateHandler(
 
         await bot.EditMessageText(chatId, messageId, BotRecipeFormatter.FormatDraft(draft.Value),
             parseMode: ParseMode.Html,
+            linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true },
             replyMarkup: BotKeyboards.DraftActions(draftId, draft.Value.CanApplyEstimates),
             cancellationToken: cancellationToken);
     }
