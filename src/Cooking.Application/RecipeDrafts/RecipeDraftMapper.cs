@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Cooking.Application.RecipeDrafts.Parsing;
 using Cooking.Application.Recipes;
 using Cooking.Domain.ReferenceData;
@@ -92,6 +94,38 @@ public static class RecipeDraftMapper
                 .ToList(),
             content.Steps,
             content.TagIds);
+
+    /// <summary>
+    /// Текущая версия черновика для LLM при правке — в тех же кодах, что и ответ (unit, complexity, названия тегов),
+    /// чтобы модель вернула её же с изменениями.
+    /// </summary>
+    public static string ToCorrectionJson(RecipeDraftContent content, IReadOnlyDictionary<Guid, string> tagNamesById)
+    {
+        var unitCodes = RecipeParsingCodes.Units.ToDictionary(x => x.Value, x => x.Key);
+        var complexityCodes = RecipeParsingCodes.Complexities.ToDictionary(x => x.Value, x => x.Key);
+
+        var recipe = new
+        {
+            title = content.Title,
+            description = content.Description,
+            complexity = complexityCodes.GetValueOrDefault(content.ComplexityId, "medium"),
+            servings = content.Servings,
+            servingsEstimate = content.ServingsEstimate,
+            cookingTimeMinutes = content.CookingTimeMinutes,
+            cookingTimeMinutesEstimate = content.CookingTimeMinutesEstimate,
+            ingredients = content.Ingredients.Select(i => new
+            {
+                name = i.Name,
+                amount = i.Amount,
+                unit = i.UnitId is { } unitId ? unitCodes.GetValueOrDefault(unitId) : null,
+            }),
+            steps = content.Steps.Select(s => new { instruction = s.Instruction, timerSeconds = s.TimerSeconds }),
+            tags = content.TagIds.Select(id => tagNamesById.GetValueOrDefault(id)).OfType<string>(),
+        };
+
+        // Кириллица без \uXXXX-экранирования — короче и понятнее модели.
+        return JsonSerializer.Serialize(recipe, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+    }
 
     private static RecipeDraftIngredient ToDraftIngredient(ParsedIngredient parsed, IReadOnlyDictionary<string, Guid> catalogIdsByKey)
     {

@@ -33,6 +33,16 @@ public static class BotCallbacks
     public static string DraftCancel(Guid draftId) => DraftCancelPrefix + draftId;
     public static string DraftEstimate(Guid draftId) => DraftEstimatePrefix + draftId;
 
+    /// <summary>
+    /// Id черновика по кнопкам превью. Ответ на сообщение приходит вместе с ним самим (и его кнопками) —
+    /// так бот понимает, к какому черновику правка, ничего не храня.
+    /// </summary>
+    public static Guid? FindDraftId(InlineKeyboardMarkup? markup) =>
+        markup?.InlineKeyboard
+            .SelectMany(row => row)
+            .Select(button => button.CallbackData is { } data ? MatchId(data, DraftSavePrefix) : null)
+            .FirstOrDefault(id => id is not null);
+
     /// <summary>Если data — это prefix + Guid, возвращает Guid; иначе null.</summary>
     public static Guid? MatchId(string data, string prefix) =>
         data.StartsWith(prefix, StringComparison.Ordinal) && Guid.TryParse(data.AsSpan(prefix.Length), out var id)

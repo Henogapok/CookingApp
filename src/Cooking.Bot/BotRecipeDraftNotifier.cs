@@ -22,10 +22,34 @@ public class BotRecipeDraftNotifier(
         if (await GetChatIdAsync(userId, cancellationToken) is not { } chatId)
             return;
 
+        await SendPreviewAsync(chatId, draftId, userId, cancellationToken);
+    }
+
+    public async Task DraftCorrectionFailedAsync(
+        Guid draftId, Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken)
+    {
+        if (await GetChatIdAsync(userId, cancellationToken) is not { } chatId)
+            return;
+
+        var text = reason switch
+        {
+            RecipeDraftFailureReason.NotARecipe => "После такой правки от рецепта ничего не осталось 🤔 Оставил прежнюю версию.",
+            RecipeDraftFailureReason.ParserUnavailable => "Разбор рецептов пока не настроен 😔 Оставил прежнюю версию.",
+            _ => "Не получилось применить правку 😔 Оставил прежнюю версию — попробуй ещё раз.",
+        };
+
+        await bot.SendMessage(chatId, text, cancellationToken: cancellationToken);
+
+        // Старое превью уже без кнопок — присылаем актуальную версию, чтобы можно было продолжить.
+        await SendPreviewAsync(chatId, draftId, userId, cancellationToken);
+    }
+
+    private async Task SendPreviewAsync(long chatId, Guid draftId, Guid userId, CancellationToken cancellationToken)
+    {
         var draft = await mediator.Send(new GetRecipeDraftQuery(draftId, userId), cancellationToken);
         if (draft.IsFailed)
         {
-            logger.LogWarning("Parsed recipe draft {DraftId} could not be loaded: {Errors}",
+            logger.LogWarning("Recipe draft {DraftId} could not be loaded: {Errors}",
                 draftId, string.Join("; ", draft.Errors.Select(e => e.Message)));
             return;
         }

@@ -19,6 +19,12 @@ public class RecipeDraft : BaseEntity
     /// <summary>Разобранный рецепт (JSON, jsonb в Postgres). null — разбор ещё идёт.</summary>
     public string? ContentJson { get; set; }
 
+    /// <summary>
+    /// Правка пользователя, которая сейчас применяется в фоне. Не null — черновик нельзя сохранить
+    /// и нельзя править повторно, пока не придёт новая версия.
+    /// </summary>
+    public string? PendingCorrection { get; set; }
+
     /// <summary>После этого момента черновик нельзя сохранить; просроченные удаляются.</summary>
     public DateTime ExpiresAt { get; set; }
 }

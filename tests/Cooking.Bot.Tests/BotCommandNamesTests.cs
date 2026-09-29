@@ -1,3 +1,5 @@
+using Telegram.Bot.Types.ReplyMarkups;
+
 namespace Cooking.Bot.Tests;
 
 public class BotCommandNamesTests
@@ -54,5 +56,15 @@ public class BotCommandNamesTests
     public void Callbacks_MatchId_OtherData_ReturnsNull(string data)
     {
         Assert.Null(BotCallbacks.MatchId(data, BotCallbacks.DraftSavePrefix));
+    }
+
+    [Fact]
+    public void FindDraftId_FromPreviewButtons()
+    {
+        var draftId = Guid.NewGuid();
+
+        Assert.Equal(draftId, BotCallbacks.FindDraftId(BotKeyboards.DraftActions(draftId, canApplyEstimates: true)));
+        Assert.Null(BotCallbacks.FindDraftId(BotKeyboards.FamilyActions()));
+        Assert.Null(BotCallbacks.FindDraftId(null));
     }
 }

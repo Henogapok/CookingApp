@@ -158,4 +158,17 @@ public class RecipeDraftMapperTests
         Assert.Equal(2, withEstimates.Servings);
         Assert.Equal(30, withEstimates.CookingTimeMinutes); // значение из текста оценка не перетирает
     }
+
+    [Fact]
+    public void ToCorrectionJson_UsesLlmCodesAndTagNames()
+    {
+        var content = Map(Parsed([Ingredient("Куриное филе", 500), Ingredient("Соль", null, null)], tags: ["Ужин"]));
+
+        var json = RecipeDraftMapper.ToCorrectionJson(content, new Dictionary<Guid, string> { [DinnerTagId] = "Ужин" });
+
+        Assert.Contains("\"name\":\"Куриное филе\",\"amount\":500,\"unit\":\"g\"", json);
+        Assert.Contains("\"name\":\"Соль\",\"amount\":null,\"unit\":null", json);
+        Assert.Contains("\"complexity\":\"easy\"", json);
+        Assert.Contains("\"tags\":[\"Ужин\"]", json);
+    }
 }

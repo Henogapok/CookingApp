@@ -45,6 +45,10 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
           timerSeconds — только если в шаге названо конкретное время («варить 10 минут» → 600; для диапазона — нижняя граница), иначе null.
         - tags — только из списка «Доступные теги», и только явно подходящие. Нет списка — пустой массив.
         - complexity: easy, medium или hard.
+
+        Правка: если в сообщении есть «Текущая версия рецепта» и «Правка пользователя», верни текущую версию целиком,
+        изменив только то, о чём просит правка. Остальное (названия ингредиентов, формулировки шагов, числа) оставь как есть.
+        Исходный текст рецепта — для справки. isRecipe = true, если после правки в рецепте что-то осталось.
         """;
 
     private static readonly Dictionary<string, JsonElement> Schema = BuildSchema();
@@ -134,6 +138,20 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
             .AppendLine("<recipe>")
             .AppendLine(request.Text)
             .AppendLine("</recipe>");
+
+        if (request.CurrentRecipeJson is not null && request.Correction is not null)
+        {
+            message.AppendLine()
+                .AppendLine("Текущая версия рецепта:")
+                .AppendLine("<current>")
+                .AppendLine(request.CurrentRecipeJson)
+                .AppendLine("</current>")
+                .AppendLine()
+                .AppendLine("Правка пользователя:")
+                .AppendLine("<correction>")
+                .AppendLine(request.Correction)
+                .AppendLine("</correction>");
+        }
 
         return message.ToString();
     }

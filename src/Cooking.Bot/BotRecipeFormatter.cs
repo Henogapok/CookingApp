@@ -21,6 +21,8 @@ public static class BotRecipeFormatter
     private const string LlmMark = "🤖";
     private const string NewMark = "🆕";
 
+    public const string DraftCorrectionHint = "✏️ Что-то не так? Ответь на это сообщение и напиши, что поправить.";
+
     private static readonly CultureInfo Russian = CultureInfo.GetCultureInfo("ru-RU");
 
     public static string FormatCard(RecipeDto recipe, Guid viewerUserId)
@@ -106,6 +108,8 @@ public static class BotRecipeFormatter
 
         if (draft.Steps.Count > 0)
             sections.Add(FormatSteps(draft.Steps));
+
+        sections.Add(new TextSection(DraftCorrectionHint));
 
         return JoinWithinLimit(sections);
     }

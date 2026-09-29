@@ -100,6 +100,11 @@ public class BotUpdateHandler(
                 await CreateDraftAsync(chatId, user, recipeText, cancellationToken);
                 break;
 
+            // Ответ на превью черновика — правка («лука не надо, порций 4»).
+            case var correction when replyTo is { From.IsBot: true } && BotCallbacks.FindDraftId(replyTo.ReplyMarkup) is { } draftId:
+                await CorrectDraftAsync(chatId, replyTo.MessageId, user, draftId, correction, cancellationToken);
+                break;
+
             case BotButtons.CreateFamily:
                 await CreateFamilyAsync(chatId, user, cancellationToken);
                 break;
@@ -289,6 +294,28 @@ public class BotUpdateHandler(
             replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
     }
 
+    private async Task CorrectDraftAsync(
+        long chatId, int previewMessageId, UserDto user, Guid draftId, string correction, CancellationToken cancellationToken)
+    {
+        var result = await mediator.Send(new CorrectRecipeDraftCommand(draftId, user.Id, correction), cancellationToken);
+        if (result.IsFailed)
+        {
+            if (ErrorCodeOf(result) == ErrorCode.Validation)
+            {
+                await bot.SendMessage(chatId, "Слишком длинная правка — попробуй покороче.", cancellationToken: cancellationToken);
+                return;
+            }
+
+            await ReportDraftFailureAsync(chatId, user, result, "correct recipe draft", cancellationToken);
+            return;
+        }
+
+        // Старое превью больше не актуально: убираем его кнопки, чтобы не сохранить прежнюю версию. Новое пришлёт notifier.
+        var quoted = correction.Length > 200 ? correction[..200] + "…" : correction;
+        await bot.EditMessageText(chatId, previewMessageId, $"✏️ Применяю правку: «{quoted}»",
+            cancellationToken: cancellationToken);
+    }
+
     private async Task ConfirmDraftAsync(long chatId, int messageId, UserDto user, Guid draftId, CancellationToken cancellationToken)
     {
         var result = await mediator.Send(new ConfirmRecipeDraftCommand(draftId, user.Id), cancellationToken);
@@ -353,6 +380,15 @@ public class BotUpdateHandler(
         {
             await bot.SendMessage(chatId,
                 "Этот черновик уже сохранён, отменён или устарел 🤷 Пришли текст рецепта заново, если нужно.",
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        // LogicConflict — черновик ещё разбирается или к нему применяется правка.
+        if (ErrorCodeOf(result) == ErrorCode.LogicConflict)
+        {
+            await bot.SendMessage(chatId,
+                "⏳ Ещё обрабатываю этот черновик — пришлю обновлённую версию, тогда и продолжим.",
                 cancellationToken: cancellationToken);
             return;
         }

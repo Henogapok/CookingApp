@@ -44,6 +44,14 @@ public class RecipeDraftCommandsTests
             Failed.Add(reason);
             return Task.CompletedTask;
         }
+
+        public List<RecipeDraftFailureReason> CorrectionFailed { get; } = [];
+
+        public Task DraftCorrectionFailedAsync(Guid draftId, Guid userId, RecipeDraftFailureReason reason, CancellationToken cancellationToken)
+        {
+            CorrectionFailed.Add(reason);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class NoopQueue : IRecipeParsingQueue
@@ -352,5 +360,86 @@ public class RecipeDraftCommandsTests
         await ConfirmAsync(context, draftId, userId);
 
         Assert.Equal(250, (await context.IngredientCatalog.FindAsync(chickenId))!.PieceWeight);
+    }
+
+    private static Task<Result> CorrectAsync(CookingDbContext context, Guid draftId, Guid userId, string text) =>
+        new CorrectRecipeDraftCommandHandler(new RecipeDraftRepositoryService(context), new NoopQueue())
+            .Handle(new CorrectRecipeDraftCommand(draftId, userId, text), CancellationToken.None);
+
+    private static async Task<(CookingDbContext Context, Guid UserId, Guid DraftId)> CreateParsedDraftAsync()
+    {
+        var (context, userId, _) = await CreateAsync();
+        var draftId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(ChickenRecipe)), new FakeNotifier());
+        return (context, userId, draftId);
+    }
+
+    [Fact]
+    public async Task Correction_SendsCurrentVersionAndCorrectionToLlm_AndReplacesContent()
+    {
+        var (context, userId, draftId) = await CreateParsedDraftAsync();
+        await using var _ = context;
+        await new ApplyRecipeDraftEstimatesCommandHandler(new RecipeDraftRepositoryService(context))
+            .Handle(new ApplyRecipeDraftEstimatesCommand(draftId, userId), CancellationToken.None);
+
+        Assert.True((await CorrectAsync(context, draftId, userId, "соли не надо")).IsSuccess);
+
+        var corrected = ChickenRecipe with { Ingredients = [ChickenRecipe.Ingredients[0]] };
+        var parser = new FakeParser(Result.Ok(corrected));
+        var notifier = new FakeNotifier();
+        await ParseAsync(context, draftId, parser, notifier);
+
+        Assert.Equal("соли не надо", parser.LastRequest!.Correction);
+        Assert.Contains("\"name\":\"Соль\"", parser.LastRequest.CurrentRecipeJson);
+        Assert.Equal([draftId], notifier.Ready);
+
+        var preview = (await new RecipeDraftRepositoryService(context).GetByIdAsync(draftId, userId, CancellationToken.None)).Value;
+        Assert.Equal(["куриное филе"], preview.Ingredients.Select(i => i.Name));
+        Assert.False(preview.IsBeingCorrected);
+        Assert.True(preview.ServingsIsEstimate); // «Оценить» не слетает после правки
+    }
+
+    [Fact]
+    public async Task Correction_WhilePending_BlocksSaveAndSecondCorrection_ButPreviewIsVisible()
+    {
+        var (context, userId, draftId) = await CreateParsedDraftAsync();
+        await using var _ = context;
+
+        await CorrectAsync(context, draftId, userId, "соли не надо");
+
+        AssertError(await ConfirmAsync(context, draftId, userId), ErrorCode.LogicConflict);
+        AssertError(await CorrectAsync(context, draftId, userId, "и перца"), ErrorCode.LogicConflict);
+
+        var preview = await new RecipeDraftRepositoryService(context).GetByIdAsync(draftId, userId, CancellationToken.None);
+        Assert.True(preview.Value.IsBeingCorrected);
+    }
+
+    [Fact]
+    public async Task Correction_Failed_KeepsPreviousVersionAndNotifies()
+    {
+        var (context, userId, draftId) = await CreateParsedDraftAsync();
+        await using var _ = context;
+        await CorrectAsync(context, draftId, userId, "соли не надо");
+        var notifier = new FakeNotifier();
+
+        await ParseAsync(context, draftId, new FakeParser(Result.Fail(new AppError("timeout", ErrorCode.ExternalService))), notifier);
+
+        Assert.Equal([RecipeDraftFailureReason.ParserError], notifier.CorrectionFailed);
+        Assert.Empty(notifier.Failed);
+        var preview = (await new RecipeDraftRepositoryService(context).GetByIdAsync(draftId, userId, CancellationToken.None)).Value;
+        Assert.Equal(2, preview.Ingredients.Count);
+        Assert.False(preview.IsBeingCorrected);
+        Assert.True((await ConfirmAsync(context, draftId, userId)).IsSuccess);
+    }
+
+    [Fact]
+    public async Task Correction_OfUnparsedOrForeignDraft_IsRejected()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = await CreateDraftAsync(context, userId);
+
+        AssertError(await CorrectAsync(context, draftId, userId, "соли не надо"), ErrorCode.LogicConflict);
+        AssertError(await CorrectAsync(context, draftId, Guid.NewGuid(), "соли не надо"), ErrorCode.NotFound);
     }
 }

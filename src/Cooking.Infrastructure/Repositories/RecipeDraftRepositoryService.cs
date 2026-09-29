@@ -39,12 +39,15 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
     public async Task<Result<RecipeDraftSource>> GetSourceAsync(Guid id, CancellationToken cancellationToken)
     {
-        var source = await dataContext.RecipeDrafts
-            .Where(d => d.Id == id)
-            .Select(d => new RecipeDraftSource(d.Id, d.UserId, d.SourceText))
-            .FirstOrDefaultAsync(cancellationToken);
+        var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
+        if (draft is null)
+            return DraftNotFound(id);
 
-        return source is null ? DraftNotFound(id) : Result.Ok(source);
+        var content = draft.ContentJson is null ? null : Deserialize(draft);
+        if (content is { IsFailed: true })
+            return content.ToResult<RecipeDraftSource>();
+
+        return Result.Ok(new RecipeDraftSource(draft.Id, draft.UserId, draft.SourceText, content?.Value, draft.PendingCorrection));
     }
 
     public async Task<Result> SetContentAsync(Guid id, RecipeDraftContent content, CancellationToken cancellationToken)
@@ -54,9 +57,32 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             return DraftNotFound(id);
 
         draft.ContentJson = JsonSerializer.Serialize(content, JsonOptions);
+        draft.PendingCorrection = null;
         await dataContext.SaveChangesAsync(cancellationToken);
 
         return Result.Ok();
+    }
+
+    public async Task<Result> StartCorrectionAsync(Guid id, Guid userId, string correction, CancellationToken cancellationToken)
+    {
+        var draft = await FindOwnAsync(id, userId, cancellationToken);
+        if (draft.IsFailed)
+            return draft.ToResult();
+
+        draft.Value.PendingCorrection = correction;
+        await dataContext.SaveChangesAsync(cancellationToken);
+
+        return Result.Ok();
+    }
+
+    public async Task ClearCorrectionAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
+        if (draft is null)
+            return;
+
+        draft.PendingCorrection = null;
+        await dataContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<Result<RecipeDraftContent>> GetContentAsync(Guid id, Guid userId, CancellationToken cancellationToken)
@@ -70,7 +96,8 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
     public async Task<Result<RecipeDraftDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
-        var draft = await FindOwnAsync(id, userId, cancellationToken);
+        // Показать можно и во время правки — это последняя готовая версия.
+        var draft = await FindOwnAsync(id, userId, cancellationToken, allowCorrecting: true);
         if (draft.IsFailed)
             return draft.ToResult<RecipeDraftDto>();
 
@@ -136,6 +163,7 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             c.EffectiveCookingTimeMinutes,
             CookingTimeIsEstimate: c.CookingTimeMinutes is null && c.EffectiveCookingTimeMinutes is not null,
             c.CanApplyEstimates,
+            IsBeingCorrected: draft.Value.PendingCorrection is not null,
             c.Ingredients
                 .Select((i, index) =>
                 {
@@ -161,7 +189,7 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
     public async Task<Result> DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
-        var draft = await FindOwnAsync(id, userId, cancellationToken, requireParsed: false);
+        var draft = await FindOwnAsync(id, userId, cancellationToken, requireParsed: false, allowCorrecting: true);
         if (draft.IsFailed)
             return draft.ToResult();
 
@@ -181,9 +209,12 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
         await dataContext.SaveChangesAsync(cancellationToken);
     }
 
-    /// <summary>Чужой и просроченный черновик для пользователя «не существует».</summary>
+    /// <summary>
+    /// Чужой и просроченный черновик для пользователя «не существует». По умолчанию черновик ещё и должен быть готов:
+    /// разобран и без незавершённой правки — иначе сохранить или поправить можно было бы устаревшую версию.
+    /// </summary>
     private async Task<Result<RecipeDraft>> FindOwnAsync(
-        Guid id, Guid userId, CancellationToken cancellationToken, bool requireParsed = true)
+        Guid id, Guid userId, CancellationToken cancellationToken, bool requireParsed = true, bool allowCorrecting = false)
     {
         var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
 
@@ -192,6 +223,9 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
         if (requireParsed && draft.ContentJson is null)
             return Result.Fail(new AppError($"Recipe draft '{id}' is still being parsed.", ErrorCode.LogicConflict));
+
+        if (!allowCorrecting && draft.PendingCorrection is not null)
+            return Result.Fail(new AppError($"Recipe draft '{id}' is being corrected.", ErrorCode.LogicConflict));
 
         return Result.Ok(draft);
     }

@@ -202,6 +202,7 @@ public class BotRecipeFormatterTests
             Guid.NewGuid(), "Плов <узбекский>", null, "Medium",
             servings, servingsIsEstimate, cookingTimeMinutes, CookingTimeIsEstimate: false,
             CanApplyEstimates: servings is null,
+            IsBeingCorrected: false,
             ingredients ?? [DraftIngredient("Рис", 500, "г", isNew: false)],
             [new RecipeStepDto(1, "Обжарить мясо", null)],
             ["Ужин"],
@@ -222,6 +223,7 @@ public class BotRecipeFormatterTests
         Assert.Contains("👥 порции не указаны", missing);
         Assert.Contains("👥 4 порц. (🤖 оценка ИИ)", estimated);
         Assert.Contains("⏱ время не указано", estimated);
+        Assert.EndsWith(BotRecipeFormatter.DraftCorrectionHint, missing);
     }
 
     [Fact]
