@@ -199,7 +199,9 @@ public class BotRecipeFormatterTests
         int? cookingTimeMinutes = 90,
         List<RecipeDraftIngredientDto>? ingredients = null,
         Guid? recipeId = null,
-        string? sourceUrl = null) =>
+        string? sourceUrl = null,
+        int? dishNumber = null,
+        int? dishCount = null) =>
         new(
             Guid.NewGuid(), "Плов <узбекский>", null, "Medium",
             servings, servingsIsEstimate, cookingTimeMinutes, CookingTimeIsEstimate: false,
@@ -207,6 +209,8 @@ public class BotRecipeFormatterTests
             IsBeingCorrected: false,
             RecipeId: recipeId,
             SourceUrl: sourceUrl,
+            DishNumber: dishNumber,
+            DishCount: dishCount,
             ingredients ?? [DraftIngredient("Рис", 500, "г", isNew: false)],
             [new RecipeStepDto(1, "Обжарить мясо", null)],
             ["Ужин"],
@@ -312,5 +316,11 @@ public class BotRecipeFormatterTests
     {
         Assert.StartsWith("📝 Вот что я разобрал", BotRecipeFormatter.FormatDraft(CreateDraft()));
         Assert.StartsWith("✏️ Так будет выглядеть рецепт после изменений", BotRecipeFormatter.FormatDraft(CreateDraft(recipeId: Guid.NewGuid())));
+    }
+
+    [Fact]
+    public void FormatDraft_OneOfSeveralDishes_ShowsDishNumber()
+    {
+        Assert.StartsWith("📝 Блюдо 2 из 3 — проверь", BotRecipeFormatter.FormatDraft(CreateDraft(dishNumber: 2, dishCount: 3)));
     }
 }

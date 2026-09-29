@@ -1,13 +1,22 @@
 namespace Cooking.Application.RecipeDrafts.Parsing;
 
 /// <summary>
+/// Ответ LLM: в одном тексте может быть несколько блюд (рацион дня, подборка перекусов, варианты начинок).
+/// </summary>
+/// <param name="Dishes">Названия всех найденных блюд по порядку; пусто — рецепта нет.</param>
+/// <param name="Recipes">
+/// Полные рецепты. Пусто при непустом Dishes — блюд больше <see cref="RecipeDraftLimits.MaxDishes"/>,
+/// и пользователь сначала выбирает, какие разбирать.
+/// </param>
+public record ParsedRecipes(List<string> Dishes, List<ParsedRecipe> Recipes);
+
+/// <summary>
 /// Рецепт, как его вернул LLM: имена и коды (<see cref="RecipeParsingCodes"/>), без наших Id.
 /// Перевод в Id и сопоставление с каталогом — <see cref="RecipeDraftMapper"/>.
 /// </summary>
 /// <param name="Servings">Только если указано в тексте; иначе null, а оценка — в ServingsEstimate.</param>
 /// <param name="CookingTimeMinutes">Только если указано в тексте; иначе null, а оценка — в CookingTimeMinutesEstimate.</param>
 public record ParsedRecipe(
-    bool IsRecipe,
     string Title,
     string? Description,
     string Complexity,

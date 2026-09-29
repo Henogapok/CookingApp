@@ -47,6 +47,27 @@ public static class BotCallbacks
     public static string DraftEstimate(Guid draftId) => DraftEstimatePrefix + draftId;
     public static string DraftEdit(Guid draftId) => DraftEditPrefix + draftId;
 
+    // Выбор блюд, когда их больше лимита: "dish:{guid}:{номер}" — до 45 байт, "dish:go:{guid}" — 44.
+    // Отметки хранятся в самих кнопках (✅/⬜): Telegram присылает клавиатуру вместе с нажатием — бот ничего не хранит.
+    public const string DishPrefix = "dish:";
+    public const string DishGoPrefix = "dish:go:";
+
+    public static string DishToggle(Guid draftId, int index) => $"{DishPrefix}{draftId}:{index}";
+    public static string DishGo(Guid draftId) => DishGoPrefix + draftId;
+
+    /// <summary>Черновик и номер блюда из кнопки DishToggle; null — это не она.</summary>
+    public static (Guid DraftId, int Index)? ParseDishToggle(string data)
+    {
+        if (!data.StartsWith(DishPrefix, StringComparison.Ordinal) || data.StartsWith(DishGoPrefix, StringComparison.Ordinal))
+            return null;
+
+        var parts = data[DishPrefix.Length..].Split(':');
+
+        return parts.Length == 2 && Guid.TryParse(parts[0], out var draftId) && int.TryParse(parts[1], out var index)
+            ? (draftId, index)
+            : null;
+    }
+
     // Сообщение «Что поправить?» несёт ForceReply, а не inline-кнопки, поэтому Id черновика (и превью, у которого
     // надо убрать кнопки) прячем в ссылку на невидимом символе: Telegram вернёт её в reply_to_message вместе с ответом.
     // Домен .invalid зарезервирован и никуда не ведёт — ссылку никто не открывает.
@@ -238,6 +259,68 @@ public static class BotKeyboards
 
         return new InlineKeyboardMarkup(rows);
     }
+
+    private const string DishChecked = "✅ ";
+    private const string DishUnchecked = "⬜ ";
+    private const int MaxDishButtonLength = 60;
+
+    /// <summary>Список блюд на выбор (ничего не отмечено) + «Разобрать выбранные» и «Отмена».</summary>
+    public static InlineKeyboardMarkup DishChoice(Guid draftId, IReadOnlyList<string> dishes)
+    {
+        var rows = dishes
+            .Select((dish, index) => new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    DishUnchecked + (dish.Length > MaxDishButtonLength ? dish[..MaxDishButtonLength] + "…" : dish),
+                    BotCallbacks.DishToggle(draftId, index)),
+            })
+            .ToList();
+
+        rows.Add(
+        [
+            InlineKeyboardButton.WithCallbackData("▶️ Разобрать выбранные", BotCallbacks.DishGo(draftId)),
+            InlineKeyboardButton.WithCallbackData("❌ Отмена", BotCallbacks.DraftCancel(draftId)),
+        ]);
+
+        return new InlineKeyboardMarkup(rows);
+    }
+
+    /// <summary>
+    /// Та же клавиатура с переключённой отметкой у блюда index. null — отметить больше нельзя (уже выбрано maxSelected)
+    /// или такой кнопки нет.
+    /// </summary>
+    public static InlineKeyboardMarkup? ToggleDish(InlineKeyboardMarkup markup, Guid draftId, int index, int maxSelected)
+    {
+        var data = BotCallbacks.DishToggle(draftId, index);
+        var target = markup.InlineKeyboard.SelectMany(row => row).FirstOrDefault(b => b.CallbackData == data);
+        if (target is null)
+            return null;
+
+        var check = target.Text.StartsWith(DishUnchecked, StringComparison.Ordinal);
+        if (check && SelectedDishes(markup).Count >= maxSelected)
+            return null;
+
+        return new InlineKeyboardMarkup(markup.InlineKeyboard.Select(row => row
+            .Select(b => b.CallbackData == data
+                ? InlineKeyboardButton.WithCallbackData((check ? DishChecked : DishUnchecked) + DishTitle(b.Text), data)
+                : b)
+            .ToArray()));
+    }
+
+    /// <summary>Отмеченные блюда: номер (из callback_data) и название (из текста кнопки, без отметки).</summary>
+    public static List<(int Index, string Title)> SelectedDishes(InlineKeyboardMarkup? markup) =>
+        markup?.InlineKeyboard
+            .SelectMany(row => row)
+            .Where(b => b.Text.StartsWith(DishChecked, StringComparison.Ordinal) && b.CallbackData is not null)
+            .Select(b => (Toggle: BotCallbacks.ParseDishToggle(b.CallbackData!), b.Text))
+            .Where(x => x.Toggle is not null)
+            .Select(x => (x.Toggle!.Value.Index, DishTitle(x.Text)))
+            .ToList() ?? [];
+
+    private static string DishTitle(string buttonText) =>
+        buttonText.StartsWith(DishChecked, StringComparison.Ordinal) ? buttonText[DishChecked.Length..]
+        : buttonText.StartsWith(DishUnchecked, StringComparison.Ordinal) ? buttonText[DishUnchecked.Length..]
+        : buttonText;
 
     public static InlineKeyboardMarkup ConfirmLeave() =>
         new(new[]

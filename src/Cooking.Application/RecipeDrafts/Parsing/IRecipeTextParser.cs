@@ -8,16 +8,18 @@ namespace Cooking.Application.RecipeDrafts.Parsing;
 /// </summary>
 public interface IRecipeTextParser
 {
-    Task<Result<ParsedRecipe>> ParseAsync(RecipeParsingRequest request, CancellationToken cancellationToken);
+    Task<Result<ParsedRecipes>> ParseAsync(RecipeParsingRequest request, CancellationToken cancellationToken);
 }
 
 /// <param name="CatalogIngredientNames">Названия из каталога — LLM должен переиспользовать их, а не плодить дубли.</param>
 /// <param name="TagNames">Теги из базы — LLM выбирает только из них.</param>
 /// <param name="CurrentRecipeJson">Для правки: текущая версия черновика (RecipeDraftMapper.ToCorrectionJson).</param>
 /// <param name="Correction">Для правки: что пользователь просит изменить.</param>
+/// <param name="SelectedDishes">Блюд было слишком много — разобрать только эти (названия из прошлого ответа).</param>
 public record RecipeParsingRequest(
     string Text,
     IReadOnlyList<string> CatalogIngredientNames,
     IReadOnlyList<string> TagNames,
     string? CurrentRecipeJson = null,
-    string? Correction = null);
+    string? Correction = null,
+    IReadOnlyList<string>? SelectedDishes = null);

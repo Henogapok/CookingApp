@@ -37,6 +37,15 @@ public class RecipeDraft : BaseEntity
     /// </summary>
     public string? PendingCorrection { get; set; }
 
+    /// <summary>
+    /// Названия блюд (JSON-массив), если в тексте их оказалось больше, чем разбираем за раз:
+    /// черновик ждёт, пока пользователь выберет нужные.
+    /// </summary>
+    public string? DishChoicesJson { get; set; }
+
+    /// <summary>Выбранные пользователем блюда (JSON-массив названий) — фоновый разбор берёт только их.</summary>
+    public string? SelectedDishesJson { get; set; }
+
     /// <summary>После этого момента черновик нельзя сохранить; просроченные удаляются.</summary>
     public DateTime ExpiresAt { get; set; }
 }

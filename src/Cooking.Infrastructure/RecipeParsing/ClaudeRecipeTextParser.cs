@@ -4,6 +4,7 @@ using Anthropic;
 using Anthropic.Models.Beta.Messages;
 using Cooking.Application.Common.Errors;
 using ErrorCode = Cooking.Application.Common.Errors.ErrorCode;
+using Cooking.Application.RecipeDrafts;
 using Cooking.Application.RecipeDrafts.Parsing;
 using FluentResults;
 using Microsoft.Extensions.Logging;
@@ -22,12 +23,21 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     // Промпт и схема не зависят от запроса — меняется только сообщение пользователя.
-    private const string SystemPrompt =
-        """
+    private static readonly string SystemPrompt =
+        $$"""
         Ты разбираешь кулинарные рецепты из свободного текста (пост, заметка, расшифровка видео) в структуру.
 
-        Правила:
-        - Если в тексте нет рецепта, верни isRecipe = false, остальные поля заполни пустыми значениями.
+        Блюда:
+        - В тексте может быть несколько блюд: рацион дня, подборка перекусов, несколько вариантов одного блюда
+          (например, блины с разными начинками). Каждое блюдо и каждый вариант — отдельный рецепт.
+          У варианта — полный список ингредиентов и все шаги, включая общую основу (тесто для всех начинок и т. п.).
+        - Соус, заправка, гарнир, глазурь, которые подают к блюду, — часть этого блюда, а не отдельный рецепт.
+        - dishes — короткие названия всех найденных блюд по порядку. Если рецепта в тексте нет — пустой массив.
+        - recipes — полные рецепты всех блюд из dishes, в том же порядке, если блюд не больше {{RecipeDraftLimits.MaxDishes}}.
+          Если блюд больше {{RecipeDraftLimits.MaxDishes}} — recipes пустой: пользователь сначала выберет, какие разобрать.
+        - Если в сообщении есть «Выбранные блюда», разбери только их: recipes — ровно эти блюда в том же порядке.
+
+        Правила для каждого рецепта:
         - Пиши по-русски. title — короткое название блюда, как в кулинарной книге. description — одно-два предложения о блюде или null.
         - Ничего не выдумывай. servings и cookingTimeMinutes — только если они явно есть в тексте, иначе null.
           Свою оценку давай всегда отдельно: servingsEstimate и cookingTimeMinutesEstimate (общее время: подготовка + готовка).
@@ -46,9 +56,10 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
         - tags — только из списка «Доступные теги», и только явно подходящие. Нет списка — пустой массив.
         - complexity: easy, medium или hard.
 
-        Правка: если в сообщении есть «Текущая версия рецепта» и «Правка пользователя», верни текущую версию целиком,
-        изменив только то, о чём просит правка. Остальное (названия ингредиентов, формулировки шагов, числа) оставь как есть.
-        Исходный текст рецепта — для справки. isRecipe = true, если после правки в рецепте что-то осталось.
+        Правка: если в сообщении есть «Текущая версия рецепта» и «Правка пользователя», верни в recipes ровно один рецепт —
+        текущую версию целиком, изменив только то, о чём просит правка. Остальное (названия ингредиентов, формулировки шагов,
+        числа) оставь как есть. dishes — его название. Исходный текст — для справки: в нём могут быть и другие блюда,
+        их не трогай. Если после правки от рецепта ничего не осталось — оба массива пустые.
         """;
 
     private static readonly Dictionary<string, JsonElement> Schema = BuildSchema();
@@ -72,7 +83,7 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
             };
     }
 
-    public async Task<Result<ParsedRecipe>> ParseAsync(RecipeParsingRequest request, CancellationToken cancellationToken)
+    public async Task<Result<ParsedRecipes>> ParseAsync(RecipeParsingRequest request, CancellationToken cancellationToken)
     {
         if (_client is null)
             return Result.Fail(new AppError("Recipe parsing is not configured: Anthropic:ApiKey is empty.", ErrorCode.Unavailable));
@@ -110,7 +121,7 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
                 .Select(block => block.TryPickText(out var text) ? text.Text : null)
                 .OfType<string>());
 
-            return JsonSerializer.Deserialize<ParsedRecipe>(json, JsonOptions) is { } parsed
+            return JsonSerializer.Deserialize<ParsedRecipes>(json, JsonOptions) is { } parsed
                 ? Result.Ok(parsed)
                 : ExternalError("LLM returned an empty answer.");
         }
@@ -152,11 +163,17 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
                 .AppendLine(request.Correction)
                 .AppendLine("</correction>");
         }
+        else if (request.SelectedDishes is { Count: > 0 } selected)
+        {
+            message.AppendLine().AppendLine("Выбранные блюда:");
+            foreach (var dish in selected)
+                message.Append("- ").AppendLine(dish);
+        }
 
         return message.ToString();
     }
 
-    private static Result<ParsedRecipe> ExternalError(string message) =>
+    private static Result<ParsedRecipes> ExternalError(string message) =>
         Result.Fail(new AppError(message, ErrorCode.ExternalService));
 
     private static Effort ParseEffort(string value) => value.Trim().ToLowerInvariant() switch
@@ -171,7 +188,7 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
 
     /// <summary>
     /// JSON-схема ответа. Structured outputs требуют additionalProperties: false и перечисления всех полей в required;
-    /// «необязательное» поле — это anyOf с null. Имена полей — camelCase-версии свойств ParsedRecipe.
+    /// «необязательное» поле — это anyOf с null. Имена полей — camelCase-версии свойств ParsedRecipes / ParsedRecipe.
     /// </summary>
     private static Dictionary<string, JsonElement> BuildSchema()
     {
@@ -207,7 +224,6 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
 
         var recipe = Obj(new()
         {
-            ["isRecipe"] = new { type = "boolean" },
             ["title"] = new { type = "string" },
             ["description"] = Nullable(new { type = "string" }),
             ["complexity"] = Enum(RecipeParsingCodes.Complexities.Keys),
@@ -220,7 +236,13 @@ public class ClaudeRecipeTextParser : IRecipeTextParser
             ["tags"] = new { type = "array", items = new { type = "string" } },
         });
 
-        return JsonSerializer.SerializeToElement(recipe)
+        var answer = Obj(new()
+        {
+            ["dishes"] = new { type = "array", items = new { type = "string" } },
+            ["recipes"] = new { type = "array", items = recipe },
+        });
+
+        return JsonSerializer.SerializeToElement(answer)
             .EnumerateObject()
             .ToDictionary(p => p.Name, p => p.Value.Clone());
     }
