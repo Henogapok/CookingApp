@@ -13,8 +13,20 @@ public class RecipeDraft : BaseEntity
     public Guid UserId { get; set; }
     public User User { get; set; } = null!;
 
-    /// <summary>Исходный текст — нужен для разбора и для будущих правок черновика.</summary>
+    /// <summary>
+    /// Исходный текст — нужен для разбора и для правок черновика. У черновика из видео сначала пуст (или содержит
+    /// описание, присланное подписью к видео), а после скачивания и расшифровки — «описание + расшифровка».
+    /// </summary>
     public required string SourceText { get; set; }
+
+    /// <summary>Ссылка на видео (Reels), из которого сделан черновик; уходит в Recipe.SourceUrl.</summary>
+    public string? SourceUrl { get; set; }
+
+    /// <summary>Присланный пользователем видеофайл, который ещё предстоит расшифровать (удаляется после этого).</summary>
+    public string? MediaFilePath { get; set; }
+
+    /// <summary>false — текст ещё надо получить из видео (скачать по SourceUrl или расшифровать MediaFilePath).</summary>
+    public bool IsSourceLoaded { get; set; } = true;
 
     /// <summary>Разобранный рецепт (JSON, jsonb в Postgres). null — разбор ещё идёт.</summary>
     public string? ContentJson { get; set; }

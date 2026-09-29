@@ -11,6 +11,16 @@ public interface IRecipeDraftRepositoryService
     /// <summary>Создаёт черновик (ещё не разобранный) и заодно удаляет просроченные.</summary>
     Task<Result<Guid>> CreateAsync(Guid userId, string sourceText, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Черновик из видео: по ссылке (sourceUrl) или из присланного файла (mediaFilePath + описание из подписи).
+    /// Текст для разбора получит фоновая задача.
+    /// </summary>
+    Task<Result<Guid>> CreateFromMediaAsync(
+        Guid userId, string? sourceUrl, string? mediaFilePath, string? caption, CancellationToken cancellationToken);
+
+    /// <summary>Для фоновой задачи: текст из видео получен — дальше обычный разбор; файл больше не нужен.</summary>
+    Task SetSourceTextAsync(Guid id, string sourceText, CancellationToken cancellationToken);
+
     /// <summary>Черновик изменения рецепта: сразу с текущей версией и правкой, которую надо применить.</summary>
     Task<Result<Guid>> CreateForEditAsync(
         Guid userId, string sourceText, RecipeDraftContent content, string correction, CancellationToken cancellationToken);
@@ -39,4 +49,13 @@ public interface IRecipeDraftRepositoryService
 
 /// <param name="Content">null — черновик ещё не разобран.</param>
 /// <param name="PendingCorrection">Правка, которую надо применить к Content.</param>
-public record RecipeDraftSource(Guid Id, Guid UserId, string SourceText, RecipeDraftContent? Content, string? PendingCorrection);
+/// <param name="IsSourceLoaded">false — текст ещё надо получить из видео (SourceUrl или MediaFilePath).</param>
+public record RecipeDraftSource(
+    Guid Id,
+    Guid UserId,
+    string SourceText,
+    RecipeDraftContent? Content,
+    string? PendingCorrection,
+    string? SourceUrl = null,
+    string? MediaFilePath = null,
+    bool IsSourceLoaded = true);

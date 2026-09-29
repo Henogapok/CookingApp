@@ -37,6 +37,34 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
         return Result.Ok(draft.Id);
     }
 
+    public async Task<Result<Guid>> CreateFromMediaAsync(
+        Guid userId, string? sourceUrl, string? mediaFilePath, string? caption, CancellationToken cancellationToken)
+    {
+        var created = await CreateAsync(userId, caption ?? "", cancellationToken);
+        if (created.IsFailed)
+            return created;
+
+        var draft = await dataContext.RecipeDrafts.FindAsync([created.Value], cancellationToken);
+        draft!.SourceUrl = sourceUrl;
+        draft.MediaFilePath = mediaFilePath;
+        draft.IsSourceLoaded = false;
+        await dataContext.SaveChangesAsync(cancellationToken);
+
+        return created;
+    }
+
+    public async Task SetSourceTextAsync(Guid id, string sourceText, CancellationToken cancellationToken)
+    {
+        var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
+        if (draft is null)
+            return;
+
+        draft.SourceText = sourceText;
+        draft.MediaFilePath = null;
+        draft.IsSourceLoaded = true;
+        await dataContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<Result<Guid>> CreateForEditAsync(
         Guid userId, string sourceText, RecipeDraftContent content, string correction, CancellationToken cancellationToken)
     {
@@ -62,7 +90,9 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
         if (content is { IsFailed: true })
             return content.ToResult<RecipeDraftSource>();
 
-        return Result.Ok(new RecipeDraftSource(draft.Id, draft.UserId, draft.SourceText, content?.Value, draft.PendingCorrection));
+        return Result.Ok(new RecipeDraftSource(
+            draft.Id, draft.UserId, draft.SourceText, content?.Value, draft.PendingCorrection,
+            draft.SourceUrl, draft.MediaFilePath, draft.IsSourceLoaded));
     }
 
     public async Task<Result> SetContentAsync(Guid id, RecipeDraftContent content, CancellationToken cancellationToken)
@@ -180,6 +210,7 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             c.CanApplyEstimates,
             IsBeingCorrected: draft.Value.PendingCorrection is not null,
             c.RecipeId,
+            c.SourceUrl,
             c.Ingredients
                 .Select((i, index) =>
                 {

@@ -6,3 +6,5 @@ public record CreateRecipeDraftRequest(Guid UserId, string Text);
 public record RecipeDraftActorRequest(Guid UserId);
 
 public record CorrectRecipeDraftRequest(Guid UserId, string Text);
+
+public record CreateRecipeDraftFromUrlRequest(Guid UserId, string Url);
