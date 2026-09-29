@@ -10,4 +10,5 @@ public record IngredientCatalogFields(
     decimal FatPer100G,
     decimal CarbsPer100G,
     Guid CreatedBySourceId,
-    Guid NutritionSourceId);
+    Guid NutritionSourceId,
+    decimal? PieceWeight = null);

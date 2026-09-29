@@ -33,7 +33,16 @@ public class ConfirmRecipeDraftCommandHandler(
         foreach (var ingredient in content.Value.Ingredients)
         {
             var key = RecipeDraftMapper.NameKey(ingredient.Name);
-            if (ingredient.NewIngredient is not { } data || catalogIdsByKey.ContainsKey(key))
+
+            if (catalogIdsByKey.TryGetValue(key, out var existingId))
+            {
+                // Ингредиент уже в каталоге — дополняем только вес штуки, если его не было (иначе «2 шт» не посчитать).
+                if (ingredient.PieceWeight is { } pieceWeight)
+                    await catalog.SetPieceWeightIfMissingAsync(existingId, pieceWeight, cancellationToken);
+                continue;
+            }
+
+            if (ingredient.NewIngredient is not { } data)
                 continue;
 
             var created = await catalog.CreateAsync(
@@ -47,7 +56,8 @@ public class ConfirmRecipeDraftCommandHandler(
                     data.FatPer100G,
                     data.CarbsPer100G,
                     CreatedBySourceId: ReferenceIds.DataSources.Llm,
-                    NutritionSourceId: ReferenceIds.DataSources.Llm),
+                    NutritionSourceId: ReferenceIds.DataSources.Llm,
+                    ingredient.PieceWeight),
                 cancellationToken);
 
             if (created.IsFailed)

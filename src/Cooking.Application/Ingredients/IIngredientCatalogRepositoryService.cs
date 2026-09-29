@@ -9,4 +9,7 @@ public interface IIngredientCatalogRepositoryService
     Task<Result> DeleteAsync(Guid id, CancellationToken cancellationToken);
     Task<Result<IngredientCatalogDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<Result<List<IngredientCatalogDto>>> GetAllAsync(CancellationToken cancellationToken);
+
+    /// <summary>Проставляет вес 1 шт, только если он ещё не задан (ручное значение не перетираем).</summary>
+    Task SetPieceWeightIfMissingAsync(Guid id, decimal pieceWeight, CancellationToken cancellationToken);
 }

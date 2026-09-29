@@ -10,9 +10,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Текущее состояние реализации
 
-Готово: EF Core + миграции, справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
+Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Ещё нет: авторизации (пока `UserId` передаётся в запросе), подсчёта КБЖУ/стоимости рецепта, правки черновика ответом на превью, Reels, PWA.
+Ещё нет: авторизации (пока `UserId` передаётся в запросе), правки черновика ответом на превью, Reels, PWA.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -195,6 +195,7 @@ erDiagram
     string Name UK
     guid CategoryId FK
     guid BaseUnitId FK
+    decimal PieceWeight "nullable, вес 1 шт"
     decimal PricePer100g
     decimal CaloriesPer100g
     decimal ProteinPer100g
@@ -299,6 +300,7 @@ erDiagram
 - Name (string, unique)
 - CategoryId (Guid, FK → IngredientCategory)
 - BaseUnitId (Guid, FK → MeasurementUnit) — базовая единица для расчёта КБЖУ
+- PieceWeight (decimal?) — вес/объём 1 шт в базовой единице, чтобы пересчитать «2 шт» в граммы; null — штуками не считают
 - PricePer100g (decimal) — в тенге (KZT); у ингредиентов, созданных LLM, — 0 (вносится вручную)
 - CaloriesPer100g (decimal)
 - ProteinPer100g (decimal)
@@ -353,7 +355,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 
 - Все enums вынесены в отдельные справочные таблицы (не enum в коде)
 - Many-to-many для тегов через промежуточную таблицу RecipeTag — соблюдает 3НФ
-- КБЖУ и стоимость рецепта **не хранятся**, а считаются из IngredientCatalog: `amount × catalogValue / 100` — так изменение цены/КБЖУ ингредиента сразу отражается во всех рецептах. План: Postgres VIEW (`v_recipe_nutrition`), делается после базового Recipe CRUD, когда будут реальные рецепты для проверки. Пока без коэффициентов пересчёта единиц: в расчёт идут только ингредиенты, у которых единица в рецепте совпадает с базовой единицей в каталоге
+- КБЖУ и стоимость рецепта **не хранятся**, а считаются при каждом показе из IngredientCatalog по **сырой** массе: `количество в базовой единице × значение на 100 / 100` — изменение цены/КБЖУ/формулы сразу отражается во всех рецептах. Считает `Application/Nutrition/NutritionCalculator` (C#, а не VIEW в БД — чтобы тестировать и менять формулу в одном месте). Пересчёт единиц: г и мл 1:1 (плотности пока нет — если понадобится, добавить поле в каталог и учесть его в `ToBaseAmount`), ст.л. = 15, ч.л. = 5, стакан = 250, щепотка = 0.5, шт — через `PieceWeight`. «По вкусу» не считается; ингредиенты, которые не пересчитать (шт без веса), перечисляются как «не учтено». Показывается КБЖУ всего блюда и на порцию; на 100 г готового блюда — нет (нужен вес готового блюда, отложено)
 - Порции: пока одинаковые (`Servings`). Личный размер порции / вес готового блюда — отложено
 - Масштабирование порций — пересчёт на фронте, базовые Servings хранятся в Recipe
 - Долгая обработка (LLM, позже Reels) — в фоне через `IRecipeParsingQueue`, а не в обработчике апдейта: polling обрабатывает апдейты по одному, и 15 секунд LLM у одного пользователя задержали бы всех остальных

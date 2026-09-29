@@ -1,3 +1,4 @@
+using Cooking.Application.Nutrition;
 using Cooking.Application.Recipes;
 
 namespace Cooking.Application.RecipeDrafts;
@@ -16,7 +17,19 @@ public record RecipeDraftDto(
     List<RecipeDraftIngredientDto> Ingredients,
     List<RecipeStepDto> Steps,
     List<string> TagNames,
+    RecipeNutrition Nutrition,
     DateTime ExpiresAt);
 
-/// <param name="IsNew">Ингредиента нет в каталоге — создастся при сохранении, КБЖУ оценил ИИ.</param>
-public record RecipeDraftIngredientDto(string Name, decimal? Amount, string? UnitAbbreviation, bool IsNew);
+/// <param name="IsNew">Ингредиента нет в каталоге — создастся при сохранении.</param>
+/// <param name="IsNutritionEstimatedByLlm">КБЖУ — оценка ИИ: у новых всегда, у ингредиентов из каталога — если так записано там.</param>
+/// <param name="BaseAmount">Количество в г/мл для расчёта КБЖУ; null — «по вкусу» или не пересчитать.</param>
+public record RecipeDraftIngredientDto(
+    string Name,
+    decimal? Amount,
+    Guid? UnitId,
+    string? UnitAbbreviation,
+    bool IsNew,
+    bool IsNutritionEstimatedByLlm,
+    decimal? BaseAmount,
+    string? BaseUnitAbbreviation,
+    NutritionFacts? Nutrition);

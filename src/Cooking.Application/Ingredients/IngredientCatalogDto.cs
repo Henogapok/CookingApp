@@ -16,4 +16,5 @@ public record IngredientCatalogDto(
     Guid CreatedBySourceId,
     string CreatedBySourceName,
     Guid NutritionSourceId,
-    string NutritionSourceName);
+    string NutritionSourceName,
+    decimal? PieceWeight);

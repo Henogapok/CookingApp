@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Common.Interfaces;
+using Cooking.Application.Nutrition;
 using Cooking.Application.Recipes;
 using Cooking.Application.Tags;
 using Cooking.Domain.Entities.Recipes;
@@ -97,10 +98,10 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         if (user is null)
             return UserNotFound(userId);
 
-        var dto = await dataContext.Recipes
+        var row = await dataContext.Recipes
             .Where(VisibleTo(user))
             .Where(r => r.Id == id)
-            .Select(r => new RecipeDto(
+            .Select(r => new RecipeRow(
                 r.Id,
                 r.Title,
                 r.Description,
@@ -117,14 +118,22 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                 r.UpdatedAt,
                 r.Ingredients
                     .OrderBy(i => i.SortOrder)
-                    .Select(i => new RecipeIngredientDto(
+                    .Select(i => new IngredientRow(
                         i.IngredientCatalogId,
                         i.IngredientCatalog.Name,
                         i.Amount,
                         i.UnitId,
                         i.Unit != null ? i.Unit.Name : null,
                         i.Unit != null ? i.Unit.Abbreviation : null,
-                        i.IngredientCatalog.NutritionSourceId == ReferenceIds.DataSources.Llm))
+                        i.IngredientCatalog.NutritionSourceId == ReferenceIds.DataSources.Llm,
+                        i.IngredientCatalog.BaseUnitId,
+                        i.IngredientCatalog.BaseUnit.Abbreviation,
+                        i.IngredientCatalog.PieceWeight,
+                        i.IngredientCatalog.CaloriesPer100g,
+                        i.IngredientCatalog.ProteinPer100g,
+                        i.IngredientCatalog.FatPer100g,
+                        i.IngredientCatalog.CarbsPer100g,
+                        i.IngredientCatalog.PricePer100g))
                     .ToList(),
                 r.Steps
                     .OrderBy(s => s.StepNumber)
@@ -136,7 +145,70 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                     .ToList()))
             .FirstOrDefaultAsync(cancellationToken);
 
-        return dto is null ? RecipeNotFound(id) : Result.Ok(dto);
+        return row is null ? RecipeNotFound(id) : Result.Ok(ToDto(row));
+    }
+
+    // КБЖУ считается в C# после загрузки (NutritionCalculator), поэтому сначала — плоские строки из БД.
+    private sealed record IngredientRow(
+        Guid IngredientCatalogId,
+        string Name,
+        decimal? Amount,
+        Guid? UnitId,
+        string? UnitName,
+        string? UnitAbbreviation,
+        bool IsNutritionEstimatedByLlm,
+        Guid BaseUnitId,
+        string BaseUnitAbbreviation,
+        decimal? PieceWeight,
+        decimal Calories,
+        decimal Protein,
+        decimal Fat,
+        decimal Carbs,
+        decimal Price)
+    {
+        public IngredientAmount ToAmount() => new(
+            Name, Amount, UnitId,
+            new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), Price));
+    }
+
+    private sealed record RecipeRow(
+        Guid Id,
+        string Title,
+        string? Description,
+        string? SourceUrl,
+        Guid SourceTypeId,
+        string SourceTypeName,
+        Guid ComplexityId,
+        string ComplexityName,
+        int? Servings,
+        int? CookingTimeMinutes,
+        Guid CreatedByUserId,
+        string CreatedByFirstName,
+        DateTime CreatedAt,
+        DateTime UpdatedAt,
+        List<IngredientRow> Ingredients,
+        List<RecipeStepDto> Steps,
+        List<TagDto> Tags);
+
+    private static RecipeDto ToDto(RecipeRow r)
+    {
+        var ingredients = r.Ingredients
+            .Select(i =>
+            {
+                var nutrition = NutritionCalculator.ForIngredient(i.ToAmount());
+                return new RecipeIngredientDto(
+                    i.IngredientCatalogId, i.Name, i.Amount, i.UnitId, i.UnitName, i.UnitAbbreviation,
+                    i.IsNutritionEstimatedByLlm, nutrition.BaseAmount, i.BaseUnitAbbreviation, nutrition.Nutrition);
+            })
+            .ToList();
+
+        return new RecipeDto(
+            r.Id, r.Title, r.Description, r.SourceUrl,
+            r.SourceTypeId, r.SourceTypeName, r.ComplexityId, r.ComplexityName,
+            r.Servings, r.CookingTimeMinutes,
+            r.CreatedByUserId, r.CreatedByFirstName, r.CreatedAt, r.UpdatedAt,
+            ingredients, r.Steps, r.Tags,
+            NutritionCalculator.ForRecipe(r.Ingredients.Select(i => i.ToAmount()).ToList(), r.Servings));
     }
 
     public async Task<Result<List<RecipeSummaryDto>>> GetAllAsync(Guid userId, string? search, CancellationToken cancellationToken)

@@ -18,6 +18,7 @@ public class CreateIngredientCatalogCommandHandler(IIngredientCatalogRepositoryS
                 request.FatPer100G,
                 request.CarbsPer100G,
                 request.CreatedBySourceId,
-                request.NutritionSourceId),
+                request.NutritionSourceId,
+                request.PieceWeight),
             cancellationToken);
 }

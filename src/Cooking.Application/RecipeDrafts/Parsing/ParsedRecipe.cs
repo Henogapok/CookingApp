@@ -22,6 +22,7 @@ public record ParsedRecipe(
 /// <summary>
 /// Amount/Unit = null — «по вкусу». Category, BaseUnit и КБЖУ LLM заполняет всегда,
 /// но используются они только для ингредиентов, которых нет в каталоге.
+/// PieceWeight — вес 1 шт в базовой единице, если продукт считают штуками.
 /// </summary>
 public record ParsedIngredient(
     string Name,
@@ -32,6 +33,7 @@ public record ParsedIngredient(
     decimal CaloriesPer100G,
     decimal ProteinPer100G,
     decimal FatPer100G,
-    decimal CarbsPer100G);
+    decimal CarbsPer100G,
+    decimal? PieceWeight);
 
 public record ParsedStep(string Instruction, int? TimerSeconds);

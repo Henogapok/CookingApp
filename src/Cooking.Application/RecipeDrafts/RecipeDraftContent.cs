@@ -32,12 +32,17 @@ public record RecipeDraftContent(
 }
 
 /// <summary>Ровно одно из IngredientCatalogId / NewIngredient заполнено. Amount/UnitId = null — «по вкусу».</summary>
+/// <param name="PieceWeight">
+/// Вес 1 шт по оценке ИИ. Для нового ингредиента уйдёт в каталог; для ингредиента из каталога —
+/// только если там веса штуки ещё нет.
+/// </param>
 public record RecipeDraftIngredient(
     string Name,
     Guid? IngredientCatalogId,
     NewIngredientDraft? NewIngredient,
     decimal? Amount,
-    Guid? UnitId);
+    Guid? UnitId,
+    decimal? PieceWeight = null);
 
 /// <summary>КБЖУ оценил LLM; цена неизвестна (0) — её вносят вручную.</summary>
 public record NewIngredientDraft(

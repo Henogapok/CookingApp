@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Common.Interfaces;
+using Cooking.Application.Nutrition;
 using Cooking.Application.RecipeDrafts;
 using Cooking.Application.Recipes;
 using Cooking.Domain.Entities.Recipes;
+using Cooking.Domain.ReferenceData;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -84,10 +86,39 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             .Select(x => x.Name)
             .FirstOrDefaultAsync(cancellationToken) ?? "";
 
-        var unitIds = c.Ingredients.Where(i => i.UnitId is not null).Select(i => i.UnitId!.Value).Distinct().ToList();
+        // Для КБЖУ: ингредиенты из каталога берут данные оттуда, новые — из оценки ИИ в черновике.
+        var catalogIds = c.Ingredients.Where(i => i.IngredientCatalogId is not null).Select(i => i.IngredientCatalogId!.Value).ToList();
+        var catalog = await dataContext.IngredientCatalog
+            .Where(x => catalogIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+
+        var unitIds = c.Ingredients.Where(i => i.UnitId is not null).Select(i => i.UnitId!.Value)
+            .Concat(c.Ingredients.Select(i => i.NewIngredient?.BaseUnitId).OfType<Guid>())
+            .Concat(catalog.Values.Select(x => x.BaseUnitId))
+            .Distinct()
+            .ToList();
         var unitAbbreviations = await dataContext.MeasurementUnits
             .Where(u => unitIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => u.Abbreviation, cancellationToken);
+
+        IngredientNutritionSource? SourceOf(RecipeDraftIngredient i)
+        {
+            if (i.NewIngredient is { } n)
+                return new IngredientNutritionSource(
+                    n.BaseUnitId, i.PieceWeight,
+                    new NutritionFacts(n.CaloriesPer100G, n.ProteinPer100G, n.FatPer100G, n.CarbsPer100G), 0);
+
+            if (i.IngredientCatalogId is { } catalogId && catalog.TryGetValue(catalogId, out var x))
+                return new IngredientNutritionSource(
+                    x.BaseUnitId, x.PieceWeight ?? i.PieceWeight, // вес штуки из черновика допишется в каталог при сохранении
+                    new NutritionFacts(x.CaloriesPer100g, x.ProteinPer100g, x.FatPer100g, x.CarbsPer100g), x.PricePer100g);
+
+            return null; // ингредиент успели удалить из каталога
+        }
+
+        var amounts = c.Ingredients
+            .Select(i => SourceOf(i) is { } source ? new IngredientAmount(i.Name, i.Amount, i.UnitId, source) : null)
+            .ToList();
 
         var tagNames = await dataContext.Tags
             .Where(t => c.TagIds.Contains(t.Id))
@@ -106,14 +137,25 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             CookingTimeIsEstimate: c.CookingTimeMinutes is null && c.EffectiveCookingTimeMinutes is not null,
             c.CanApplyEstimates,
             c.Ingredients
-                .Select(i => new RecipeDraftIngredientDto(
-                    i.Name,
-                    i.Amount,
-                    i.UnitId is { } unitId ? unitAbbreviations.GetValueOrDefault(unitId) : null,
-                    IsNew: i.NewIngredient is not null))
+                .Select((i, index) =>
+                {
+                    var nutrition = amounts[index] is { } amount ? NutritionCalculator.ForIngredient(amount) : null;
+                    return new RecipeDraftIngredientDto(
+                        i.Name,
+                        i.Amount,
+                        i.UnitId,
+                        i.UnitId is { } unitId ? unitAbbreviations.GetValueOrDefault(unitId) : null,
+                        IsNew: i.NewIngredient is not null,
+                        IsNutritionEstimatedByLlm: i.NewIngredient is not null
+                            || (i.IngredientCatalogId is { } id && catalog.TryGetValue(id, out var x) && x.NutritionSourceId == ReferenceIds.DataSources.Llm),
+                        nutrition?.BaseAmount,
+                        amounts[index] is { } a ? unitAbbreviations.GetValueOrDefault(a.Source.BaseUnitId) : null,
+                        nutrition?.Nutrition);
+                })
                 .ToList(),
             c.Steps.Select((s, index) => new RecipeStepDto(index + 1, s.Instruction, s.TimerSeconds)).ToList(),
             tagNames,
+            NutritionCalculator.ForRecipe(amounts.OfType<IngredientAmount>().ToList(), c.EffectiveServings),
             draft.Value.ExpiresAt));
     }
 

@@ -105,8 +105,10 @@ public static class RecipeDraftMapper
         if (unitId is null || amount is null)
             (unitId, amount) = (null, null);
 
+        var pieceWeight = parsed.PieceWeight > 0 ? Math.Round(parsed.PieceWeight.Value, 2) : (decimal?)null;
+
         if (catalogIdsByKey.TryGetValue(NameKey(name), out var catalogId))
-            return new RecipeDraftIngredient(name, catalogId, null, amount, unitId);
+            return new RecipeDraftIngredient(name, catalogId, null, amount, unitId, pieceWeight);
 
         var newIngredient = new NewIngredientDraft(
             RecipeParsingCodes.Categories.GetValueOrDefault(parsed.Category ?? "", ReferenceIds.IngredientCategories.Spices),
@@ -116,7 +118,7 @@ public static class RecipeDraftMapper
             NonNegative(parsed.FatPer100G),
             NonNegative(parsed.CarbsPer100G));
 
-        return new RecipeDraftIngredient(name, null, newIngredient, amount, unitId);
+        return new RecipeDraftIngredient(name, null, newIngredient, amount, unitId, pieceWeight);
     }
 
     private static int? Positive(int? value) => value > 0 ? value : null;

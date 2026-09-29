@@ -14,4 +14,5 @@ public record UpdateIngredientCatalogCommand(
     decimal FatPer100G,
     decimal CarbsPer100G,
     Guid CreatedBySourceId,
-    Guid NutritionSourceId) : IRequest<Result>;
+    Guid NutritionSourceId,
+    decimal? PieceWeight = null) : IRequest<Result>;

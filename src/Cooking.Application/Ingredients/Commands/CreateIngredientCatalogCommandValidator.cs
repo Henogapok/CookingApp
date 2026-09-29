@@ -16,5 +16,6 @@ public class CreateIngredientCatalogCommandValidator : AbstractValidator<CreateI
         RuleFor(x => x.ProteinPer100G).GreaterThanOrEqualTo(0);
         RuleFor(x => x.FatPer100G).GreaterThanOrEqualTo(0);
         RuleFor(x => x.CarbsPer100G).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.PieceWeight).GreaterThan(0).When(x => x.PieceWeight is not null);
     }
 }

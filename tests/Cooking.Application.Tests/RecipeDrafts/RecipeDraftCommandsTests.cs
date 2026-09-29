@@ -62,8 +62,8 @@ public class RecipeDraftCommandsTests
         CookingTimeMinutesEstimate: 15,
         Ingredients:
         [
-            new ParsedIngredient("куриное филе", 500, "g", "poultry", "g", 110, 23, 1.2m, 0),
-            new ParsedIngredient("Соль", null, null, "spices", "g", 0, 0, 0, 0),
+            new ParsedIngredient("куриное филе", 500, "g", "poultry", "g", 110, 23, 1.2m, 0, null),
+            new ParsedIngredient("Соль", null, null, "spices", "g", 0, 0, 0, 0, null),
         ],
         Steps: [new ParsedStep("Обжарить курицу", 600)],
         Tags: []);
@@ -140,8 +140,8 @@ public class RecipeDraftCommandsTests
 
         var preview = (await new RecipeDraftRepositoryService(context).GetByIdAsync(draftId, userId, CancellationToken.None)).Value;
         Assert.Equal(
-            [new RecipeDraftIngredientDto("куриное филе", 500, "г", IsNew: false), new RecipeDraftIngredientDto("Соль", null, null, IsNew: true)],
-            preview.Ingredients);
+            [("куриное филе", (decimal?)500, (string?)"г", false), ("Соль", null, null, true)],
+            preview.Ingredients.Select(i => (i.Name, i.Amount, i.UnitAbbreviation, i.IsNew)));
         Assert.Null(preview.Servings);
         Assert.True(preview.CanApplyEstimates);
     }
@@ -292,5 +292,65 @@ public class RecipeDraftCommandsTests
 
         await CreateDraftAsync(context, userId);
         Assert.DoesNotContain(context.RecipeDrafts, d => d.Id == draftId);
+    }
+
+    private static readonly ParsedRecipe EggRecipe = ChickenRecipe with
+    {
+        Ingredients =
+        [
+            // Филе есть в каталоге без веса штуки, яиц нет — оба в штуках.
+            new ParsedIngredient("Куриное филе", 1, "pcs", "poultry", "g", 110, 23, 1.2m, 0, 200),
+            new ParsedIngredient("Яйцо", 2, "pcs", "eggs", "g", 157, 12.7m, 11.5m, 0.7m, 55),
+        ],
+    };
+
+    [Fact]
+    public async Task Preview_CountsNutritionForPiecesUsingLlmPieceWeight()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(EggRecipe)), new FakeNotifier());
+
+        var preview = (await new RecipeDraftRepositoryService(context).GetByIdAsync(draftId, userId, CancellationToken.None)).Value;
+
+        var egg = preview.Ingredients[1];
+        Assert.Equal(110, egg.BaseAmount);                  // 2 шт × 55 г
+        Assert.Equal(157 * 1.1m, egg.Nutrition!.Calories);  // КБЖУ из оценки ИИ
+        Assert.Equal(200, preview.Ingredients[0].BaseAmount); // вес штуки из черновика, пока в каталоге его нет
+        Assert.Empty(preview.Nutrition.NotCounted);
+    }
+
+    [Fact]
+    public async Task Confirm_SavesPieceWeight_ForNewAndForCatalogIngredientsWithoutIt()
+    {
+        var (context, userId, chickenId) = await CreateAsync();
+        await using var _ = context;
+        var draftId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(EggRecipe)), new FakeNotifier());
+
+        var recipeId = (await ConfirmAsync(context, draftId, userId)).Value;
+
+        Assert.Equal(55, (await context.IngredientCatalog.SingleAsync(i => i.Name == "Яйцо")).PieceWeight);
+        Assert.Equal(200, (await context.IngredientCatalog.FindAsync(chickenId))!.PieceWeight);
+
+        var recipe = (await new RecipeRepositoryService(context).GetByIdAsync(recipeId, userId, CancellationToken.None)).Value;
+        Assert.Equal(2, recipe.Nutrition.CountedIngredients);
+        Assert.Equal(157 * 1.1m, recipe.Nutrition.Total.Calories); // у филе в тестовом каталоге КБЖУ = 0
+    }
+
+    [Fact]
+    public async Task Confirm_DoesNotOverwriteExistingPieceWeight()
+    {
+        var (context, userId, chickenId) = await CreateAsync();
+        await using var _ = context;
+        (await context.IngredientCatalog.FindAsync(chickenId))!.PieceWeight = 250;
+        await context.SaveChangesAsync();
+        var draftId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(EggRecipe)), new FakeNotifier());
+
+        await ConfirmAsync(context, draftId, userId);
+
+        Assert.Equal(250, (await context.IngredientCatalog.FindAsync(chickenId))!.PieceWeight);
     }
 }

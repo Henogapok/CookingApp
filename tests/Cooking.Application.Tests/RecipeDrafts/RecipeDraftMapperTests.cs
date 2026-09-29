@@ -14,7 +14,7 @@ public class RecipeDraftMapperTests
     private static readonly Dictionary<string, Guid> Tags = new() { [RecipeDraftMapper.NameKey("Ужин")] = DinnerTagId };
 
     private static ParsedIngredient Ingredient(string name, decimal? amount = 100, string? unit = "g") =>
-        new(name, amount, unit, "vegetables", "g", 40, 1.4m, 0.2m, 8.2m);
+        new(name, amount, unit, "vegetables", "g", 40, 1.4m, 0.2m, 8.2m, null);
 
     private static ParsedRecipe Parsed(
         List<ParsedIngredient>? ingredients = null,
@@ -54,7 +54,7 @@ public class RecipeDraftMapperTests
     [Fact]
     public void ToDraftContent_NewIngredient_KeepsLlmCategoryUnitAndNutrition()
     {
-        var parsed = Parsed([new ParsedIngredient("Молоко", 200, "ml", "dairy", "ml", 52, 2.8m, 2.5m, 4.7m)]);
+        var parsed = Parsed([new ParsedIngredient("Молоко", 200, "ml", "dairy", "ml", 52, 2.8m, 2.5m, 4.7m, null)]);
 
         var ingredient = Assert.Single(Map(parsed).Ingredients);
 

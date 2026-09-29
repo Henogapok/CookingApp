@@ -14,6 +14,13 @@ public class IngredientCatalog : BaseEntity
     public Guid BaseUnitId { get; set; }
     public MeasurementUnit BaseUnit { get; set; } = null!;
 
+    /// <summary>
+    /// Вес (или объём) одной штуки в базовой единице — чтобы пересчитать «2 шт» в граммы для КБЖУ.
+    /// null — продукт штуками не считают или вес неизвестен.
+    /// </summary>
+    public decimal? PieceWeight { get; set; }
+
+    /// <summary>Цена за 100 базовых единиц, ₸. 0 — неизвестна.</summary>
     public decimal PricePer100g { get; set; }
     public decimal CaloriesPer100g { get; set; }
     public decimal ProteinPer100g { get; set; }

@@ -1,5 +1,7 @@
+using Cooking.Application.Nutrition;
 using Cooking.Application.RecipeDrafts;
 using Cooking.Application.Recipes;
+using Cooking.Domain.ReferenceData;
 using Cooking.Application.Tags;
 
 namespace Cooking.Bot.Tests;
@@ -16,7 +18,8 @@ public class BotRecipeFormatterTests
         int? servings = 4,
         List<RecipeIngredientDto>? ingredients = null,
         List<RecipeStepDto>? steps = null,
-        List<TagDto>? tags = null) =>
+        List<TagDto>? tags = null,
+        RecipeNutrition? nutrition = null) =>
         new(
             Guid.NewGuid(), title, description, sourceUrl,
             Guid.NewGuid(), "Manual",
@@ -24,12 +27,16 @@ public class BotRecipeFormatterTests
             servings, cookingTimeMinutes,
             AuthorId, "Аня",
             DateTime.UtcNow, DateTime.UtcNow,
-            ingredients ?? [], steps ?? [], tags ?? []);
+            ingredients ?? [], steps ?? [], tags ?? [],
+            nutrition ?? EmptyNutrition);
 
-    private static RecipeIngredientDto Ingredient(string name, decimal? amount, string unit = "г", bool estimatedByLlm = false) =>
+    private static readonly RecipeNutrition EmptyNutrition = new RecipeNutrition(NutritionFacts.Zero, null, 0, 0, 0, []);
+
+    private static RecipeIngredientDto Ingredient(
+        string name, decimal? amount, string unit = "г", bool estimatedByLlm = false, NutritionFacts? nutrition = null) =>
         amount is null
-            ? new(Guid.NewGuid(), name, null, null, null, null, estimatedByLlm)
-            : new(Guid.NewGuid(), name, amount, Guid.NewGuid(), unit, unit, estimatedByLlm);
+            ? new(Guid.NewGuid(), name, null, null, null, null, estimatedByLlm, null, "г", null)
+            : new(Guid.NewGuid(), name, amount, Guid.NewGuid(), unit, unit, estimatedByLlm, amount, "г", nutrition);
 
     [Fact]
     public void FormatCard_EscapesHtmlInUserText()
@@ -133,7 +140,8 @@ public class BotRecipeFormatterTests
 
         Assert.True(card.Length <= 4096, $"Длина {card.Length}");
         Assert.EndsWith("…рецепт слишком длинный для одного сообщения", card);
-        Assert.Contains("<b>Приготовление</b>", card);
+        Assert.Contains("<b>Приготовление (100 шаг.)</b>\n<blockquote expandable>1. ", card);
+        Assert.Contains("</blockquote>\n…рецепт слишком длинный", card);
         Assert.DoesNotContain("100. ", card);
         Assert.DoesNotContain("Источник", card);
     }
@@ -169,9 +177,10 @@ public class BotRecipeFormatterTests
 
         var card = BotRecipeFormatter.FormatCard(recipe, AuthorId);
 
-        Assert.Contains("• Кунжут 🤖 — 10 г", card);
+        Assert.Contains("• Кунжут — 10 г", card);
         Assert.Contains("• Рис — 200 г", card);
-        Assert.Contains("🤖 — КБЖУ оценил ИИ", card);
+        Assert.Contains("🤖 КБЖУ оценил ИИ: 1 из 2 ингредиентов", card);
+        Assert.DoesNotContain("🆕", card);
     }
 
     [Fact]
@@ -193,10 +202,14 @@ public class BotRecipeFormatterTests
             Guid.NewGuid(), "Плов <узбекский>", null, "Medium",
             servings, servingsIsEstimate, cookingTimeMinutes, CookingTimeIsEstimate: false,
             CanApplyEstimates: servings is null,
-            ingredients ?? [new RecipeDraftIngredientDto("Рис", 500, "г", IsNew: false)],
+            ingredients ?? [DraftIngredient("Рис", 500, "г", isNew: false)],
             [new RecipeStepDto(1, "Обжарить мясо", null)],
             ["Ужин"],
+            EmptyNutrition,
             DateTime.UtcNow.AddDays(1));
+
+    private static RecipeDraftIngredientDto DraftIngredient(string name, decimal? amount, string? unit, bool isNew) =>
+        new(name, amount, amount is null ? null : Guid.NewGuid(), unit, isNew, isNew, amount, "г", null);
 
     [Fact]
     public void FormatDraft_ShowsWhatIsMissingAndEstimated()
@@ -216,14 +229,65 @@ public class BotRecipeFormatterTests
     {
         var draft = CreateDraft(ingredients:
         [
-            new RecipeDraftIngredientDto("Рис", 500, "г", IsNew: false),
-            new RecipeDraftIngredientDto("Зира", null, null, IsNew: true),
+            DraftIngredient("Рис", 500, "г", isNew: false),
+            DraftIngredient("Зира", null, null, isNew: true),
         ]);
 
         var text = BotRecipeFormatter.FormatDraft(draft);
 
         Assert.Contains("• Рис — 500 г", text);
-        Assert.Contains("• Зира 🤖 — по вкусу", text);
-        Assert.Contains("🤖 — новый ингредиент", text);
+        Assert.Contains("• Рис — 500 г", text);
+        Assert.Contains("• Зира 🆕 — по вкусу", text);
+        Assert.Contains("🆕 — новый ингредиент", text);
+        Assert.Contains("🤖 КБЖУ оценил ИИ: 1 из 2 ингредиентов", text);
+    }
+
+    [Fact]
+    public void FormatCard_ShowsIngredientNutritionAndTotals()
+    {
+        var beet = new RecipeIngredientDto(
+            Guid.NewGuid(), "Свёкла", 1, ReferenceIds.MeasurementUnits.Piece, "Штука", "шт", true,
+            250, "г", new NutritionFacts(107.5m, 3.75m, 0.25m, 23.9m));
+        var nutrition = new RecipeNutrition(
+            new NutritionFacts(900, 60, 40, 80), new NutritionFacts(225, 15, 10, 20),
+            CountedIngredients: 2, Cost: 1500, IngredientsWithoutPrice: 1, NotCounted: ["Зелень"]);
+
+        var card = BotRecipeFormatter.FormatCard(CreateRecipe(ingredients: [beet], nutrition: nutrition), AuthorId);
+
+        Assert.Contains("<b>Ингредиенты (1)</b> · <i>ккал/б/ж/у</i>\n<blockquote expandable>• Свёкла", card);
+        Assert.Contains("• Свёкла — 1 шт (≈250 г) · 108/4/0/24", card);
+        Assert.Contains("🔥 Всё блюдо: 900 ккал · Б 60 · Ж 40 · У 80", card);
+        Assert.Contains("🍽 На порцию (из 4): 225 ккал · Б 15 · Ж 10 · У 20", card);
+        Assert.Contains("⚠️ Не учтено в КБЖУ: Зелень", card);
+        Assert.Contains("💰 ~1\u00a0500 ₸ (без цены: 1)", card);
+    }
+
+    [Fact]
+    public void FormatCard_NoPrices_HidesCost()
+    {
+        var nutrition = new RecipeNutrition(new NutritionFacts(100, 1, 1, 1), null, 1, 0, 1, []);
+
+        var card = BotRecipeFormatter.FormatCard(CreateRecipe(ingredients: [Ingredient("Рис", 100)], nutrition: nutrition), AuthorId);
+
+        Assert.Contains("🔥 Всё блюдо: 100 ккал", card);
+        Assert.DoesNotContain("На порцию", card);
+        Assert.DoesNotContain("💰", card);
+    }
+
+    [Fact]
+    public void FormatCard_IngredientsAndSteps_AreCollapsible_TotalsVisible()
+    {
+        var nutrition = new RecipeNutrition(new NutritionFacts(900, 60, 40, 80), null, 1, 0, 1, []);
+        var recipe = CreateRecipe(
+            ingredients: [Ingredient("Соль", 5, nutrition: NutritionFacts.Zero), Ingredient("Рис", 100, nutrition: new NutritionFacts(330, 7, 1, 72))],
+            steps: [new RecipeStepDto(1, "Варить", 600)],
+            nutrition: nutrition);
+
+        var card = BotRecipeFormatter.FormatCard(recipe, AuthorId);
+
+        Assert.Contains("<blockquote expandable>• Соль — 5 г\n• Рис — 100 г · 330/7/1/72</blockquote>", card);
+        Assert.Contains("<blockquote expandable>1. Варить ⏲ 10 мин</blockquote>", card);
+        Assert.DoesNotContain("🔥", card.Split("<blockquote")[0]); // КБЖУ — после ингредиентов,
+        Assert.DoesNotContain("<blockquote", card.Split("🔥")[1].Split("<b>Приготовление")[0]); // но вне цитаты
     }
 }
