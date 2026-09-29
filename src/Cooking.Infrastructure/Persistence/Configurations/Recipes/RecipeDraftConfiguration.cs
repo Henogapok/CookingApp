@@ -13,6 +13,9 @@ public class RecipeDraftConfiguration : BaseEntityConfiguration<RecipeDraft>
 
         builder.Property(x => x.SourceText).IsRequired();
         builder.Property(x => x.ContentJson).HasColumnType("jsonb");
+        builder.Property(x => x.SourceUrl).HasMaxLength(2048);
+        builder.Property(x => x.MediaFilePath).HasMaxLength(1024);
+        builder.Property(x => x.IsSourceLoaded).HasDefaultValue(true);
 
         // Для удаления просроченных черновиков.
         builder.HasIndex(x => x.ExpiresAt);

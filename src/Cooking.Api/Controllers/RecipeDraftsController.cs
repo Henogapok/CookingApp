@@ -21,6 +21,17 @@ public class RecipeDraftsController : BaseController
             : HandleResult(result);
     }
 
+    /// <summary>Черновик из ссылки на Instagram Reels: скачивание, расшифровка и разбор — в фоне, дальше как с текстом.</summary>
+    [HttpPost("from-url")]
+    public async Task<IActionResult> CreateFromUrl(CreateRecipeDraftFromUrlRequest request, CancellationToken cancellationToken)
+    {
+        var result = await Mediator.Send(new CreateRecipeDraftFromUrlCommand(request.UserId, request.Url), cancellationToken);
+
+        return result.IsSuccess
+            ? AcceptedAtAction(nameof(GetById), new { id = result.Value, userId = request.UserId }, result.Value)
+            : HandleResult(result);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, [FromQuery] Guid userId, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new GetRecipeDraftQuery(id, userId), cancellationToken));

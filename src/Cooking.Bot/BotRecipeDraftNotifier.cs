@@ -4,6 +4,7 @@ using Cooking.Application.Users.Queries;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
+using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace Cooking.Bot;
@@ -56,6 +57,7 @@ public class BotRecipeDraftNotifier(
 
         await bot.SendMessage(chatId, BotRecipeFormatter.FormatDraft(draft.Value),
             parseMode: ParseMode.Html,
+            linkPreviewOptions: new LinkPreviewOptions { IsDisabled = true },
             replyMarkup: BotKeyboards.DraftActions(draftId, draft.Value.CanApplyEstimates),
             cancellationToken: cancellationToken);
     }
@@ -71,6 +73,11 @@ public class BotRecipeDraftNotifier(
                 "Не нашёл тут рецепта 🤔 Пришли текст, где есть ингредиенты или шаги приготовления.",
             RecipeDraftFailureReason.ParserUnavailable =>
                 "Разбор рецептов пока не настроен 😔 Загляни чуть позже.",
+            RecipeDraftFailureReason.VideoUnavailable =>
+                "Не смог скачать видео 😔 Instagram не отдал его: аккаунт закрыт, ролик удалён или сработало ограничение.\n\n" +
+                "Пришли само видео файлом — разберу его. Описание из-под ролика можно вставить подписью к видео.",
+            RecipeDraftFailureReason.NoTextInVideo =>
+                "В видео нет слов, а в описании нет рецепта 🤷 Если рецепт есть — пришли его текстом.",
             _ => "Не получилось разобрать рецепт 😔 Попробуй прислать его ещё раз чуть позже.",
         };
 

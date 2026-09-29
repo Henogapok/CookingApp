@@ -66,7 +66,7 @@ public static class BotRecipeFormatter
             sections.Add(FormatSteps(recipe.Steps));
 
         if (!string.IsNullOrWhiteSpace(recipe.SourceUrl))
-            sections.Add(new TextSection($"🔗 <a href=\"{Html(recipe.SourceUrl)}\">Источник</a>"));
+            sections.Add(SourceLink(recipe.SourceUrl));
 
         return JoinWithinLimit(sections);
     }
@@ -110,6 +110,9 @@ public static class BotRecipeFormatter
 
         if (draft.Steps.Count > 0)
             sections.Add(FormatSteps(draft.Steps));
+
+        if (!string.IsNullOrWhiteSpace(draft.SourceUrl))
+            sections.Add(SourceLink(draft.SourceUrl));
 
         sections.Add(new TextSection(DraftCorrectionHint));
 
@@ -220,6 +223,8 @@ public static class BotRecipeFormatter
                 .Select(s => $"{s.StepNumber}. {Html(s.Instruction)}" + (s.TimerSeconds is { } seconds ? $" ⏲ {FormatSeconds(seconds)}" : ""))
                 .ToList(),
             null);
+
+    private static TextSection SourceLink(string url) => new($"🔗 <a href=\"{Html(url)}\">Источник</a>");
 
     private static string EstimateNote(bool isEstimate) => isEstimate ? $" ({LlmMark} оценка ИИ)" : "";
 

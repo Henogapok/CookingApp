@@ -25,4 +25,10 @@ public enum RecipeDraftFailureReason
 
     /// <summary>LLM не ответил или ответил ошибкой.</summary>
     ParserError,
+
+    /// <summary>Видео по ссылке не скачалось — можно попросить прислать сам файл.</summary>
+    VideoUnavailable,
+
+    /// <summary>В видео нет речи, а в описании — текста (например, только музыка).</summary>
+    NoTextInVideo,
 }

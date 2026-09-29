@@ -2,6 +2,7 @@ using Cooking.Application.Common.Errors;
 using Cooking.Application.RecipeDrafts;
 using Cooking.Application.RecipeDrafts.Commands;
 using Cooking.Application.RecipeDrafts.Parsing;
+using Cooking.Application.RecipeDrafts.Sources;
 using Cooking.Domain.Entities.Ingredients;
 using Cooking.Domain.Entities.Users;
 using Cooking.Domain.ReferenceData;
@@ -109,14 +110,40 @@ public class RecipeDraftCommandsTests
         return result.Value;
     }
 
-    private static Task<Result> ParseAsync(CookingDbContext context, Guid draftId, IRecipeTextParser parser, IRecipeDraftNotifier notifier) =>
+    private static Task<Result> ParseAsync(
+        CookingDbContext context, Guid draftId, IRecipeTextParser parser, IRecipeDraftNotifier notifier,
+        IVideoSourceLoader? videoLoader = null, ISpeechToText? speechToText = null) =>
         new ParseRecipeDraftCommandHandler(
                 new RecipeDraftRepositoryService(context),
                 new IngredientCatalogRepositoryService(context),
                 new TagRepositoryService(context),
                 parser,
-                notifier)
+                notifier,
+                videoLoader ?? new FakeVideoLoader(Result.Fail(new AppError("not used", ErrorCode.ExternalService))),
+                speechToText ?? new FakeSpeechToText(Result.Ok("")))
             .Handle(new ParseRecipeDraftCommand(draftId), CancellationToken.None);
+
+    private sealed class FakeVideoLoader(Result<VideoSource> result) : IVideoSourceLoader
+    {
+        public string? LastUrl { get; private set; }
+
+        public Task<Result<VideoSource>> LoadAsync(string url, CancellationToken cancellationToken)
+        {
+            LastUrl = url;
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class FakeSpeechToText(Result<string> result) : ISpeechToText
+    {
+        public string? LastFile { get; private set; }
+
+        public Task<Result<string>> TranscribeAsync(string mediaFilePath, CancellationToken cancellationToken)
+        {
+            LastFile = mediaFilePath;
+            return Task.FromResult(result);
+        }
+    }
 
     private static Task<Result<Guid>> ConfirmAsync(CookingDbContext context, Guid draftId, Guid userId) =>
         new ConfirmRecipeDraftCommandHandler(
@@ -502,5 +529,109 @@ public class RecipeDraftCommandsTests
 
         Assert.True((await EditAsync(context, recipeId, member.Id, "порций 3")).IsSuccess);
         AssertError(await EditAsync(context, recipeId, stranger.Id, "порций 3"), ErrorCode.NotFound);
+    }
+
+    private static Task<Result<Guid>> CreateFromUrlAsync(CookingDbContext context, Guid userId, string url) =>
+        new CreateRecipeDraftFromUrlCommandHandler(new RecipeDraftRepositoryService(context), new NoopQueue())
+            .Handle(new CreateRecipeDraftFromUrlCommand(userId, url), CancellationToken.None);
+
+    private static string TempFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"cooking-test-{Guid.NewGuid():N}.m4a");
+        File.WriteAllText(path, "audio");
+        return path;
+    }
+
+    [Fact]
+    public async Task FromUrl_CombinesCaptionAndTranscript_AndSavesRecipeWithInstagramSource()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = (await CreateFromUrlAsync(context, userId, "смотри https://www.instagram.com/reel/DaSFnBZsJLo/?igsh=abc")).Value;
+        var audio = TempFile();
+        var loader = new FakeVideoLoader(Result.Ok(new VideoSource("Филе 500 г", audio)));
+        var speech = new FakeSpeechToText(Result.Ok("Обжарить курицу 10 минут"));
+        var parser = new FakeParser(Result.Ok(ChickenRecipe));
+        var notifier = new FakeNotifier();
+
+        await ParseAsync(context, draftId, parser, notifier, loader, speech);
+
+        Assert.Equal("https://www.instagram.com/reel/DaSFnBZsJLo/", loader.LastUrl);
+        Assert.Equal(audio, speech.LastFile);
+        Assert.False(File.Exists(audio)); // временный звук удалён после расшифровки
+        Assert.Contains("Филе 500 г", parser.LastRequest!.Text);
+        Assert.Contains("Обжарить курицу 10 минут", parser.LastRequest.Text);
+        Assert.Equal([draftId], notifier.Ready);
+
+        var recipeId = (await ConfirmAsync(context, draftId, userId)).Value;
+        var recipe = (await new RecipeRepositoryService(context).GetByIdAsync(recipeId, userId, CancellationToken.None)).Value;
+        Assert.Equal("https://www.instagram.com/reel/DaSFnBZsJLo/", recipe.SourceUrl);
+        Assert.Equal(ReferenceIds.SourceTypes.Instagram, recipe.SourceTypeId);
+    }
+
+    [Fact]
+    public async Task FromUrl_DownloadFailed_ReportsVideoUnavailableAndDiscardsDraft()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = (await CreateFromUrlAsync(context, userId, "https://instagram.com/reel/abc123")).Value;
+        var notifier = new FakeNotifier();
+
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(ChickenRecipe)), notifier,
+            new FakeVideoLoader(Result.Fail(new AppError("private", ErrorCode.NotFound))));
+
+        Assert.Equal([RecipeDraftFailureReason.VideoUnavailable], notifier.Failed);
+        Assert.Empty(context.RecipeDrafts);
+    }
+
+    [Fact]
+    public async Task FromUrl_MusicOnlyAndEmptyCaption_ReportsNoText_WithoutCallingLlm()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = (await CreateFromUrlAsync(context, userId, "https://instagram.com/reel/abc123")).Value;
+        var parser = new FakeParser(Result.Ok(ChickenRecipe));
+        var notifier = new FakeNotifier();
+
+        await ParseAsync(context, draftId, parser, notifier,
+            new FakeVideoLoader(Result.Ok(new VideoSource("  ", TempFile()))), new FakeSpeechToText(Result.Ok("")));
+
+        Assert.Equal([RecipeDraftFailureReason.NoTextInVideo], notifier.Failed);
+        Assert.Null(parser.LastRequest);
+    }
+
+    [Fact]
+    public async Task FromUrl_TranscriptionNotConfigured_UsesCaptionOnly()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = (await CreateFromUrlAsync(context, userId, "https://instagram.com/reel/abc123")).Value;
+        var parser = new FakeParser(Result.Ok(ChickenRecipe));
+
+        await ParseAsync(context, draftId, parser, new FakeNotifier(),
+            new FakeVideoLoader(Result.Ok(new VideoSource("Рецепт в описании", TempFile()))),
+            new FakeSpeechToText(Result.Fail(new AppError("no key", ErrorCode.Unavailable))));
+
+        Assert.Equal("Описание под видео:\nРецепт в описании", parser.LastRequest!.Text.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public async Task FromVideoFile_TranscribesFileWithCaption_AndDeletesIt()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var video = TempFile();
+        var draftId = (await new CreateRecipeDraftFromVideoCommandHandler(new RecipeDraftRepositoryService(context), new NoopQueue())
+            .Handle(new CreateRecipeDraftFromVideoCommand(userId, video, "Описание из подписи"), CancellationToken.None)).Value;
+        var speech = new FakeSpeechToText(Result.Ok("Речь из видео"));
+        var parser = new FakeParser(Result.Ok(ChickenRecipe));
+
+        await ParseAsync(context, draftId, parser, new FakeNotifier(), speechToText: speech);
+
+        Assert.Equal(video, speech.LastFile);
+        Assert.False(File.Exists(video));
+        Assert.Contains("Описание из подписи", parser.LastRequest!.Text);
+        Assert.Contains("Речь из видео", parser.LastRequest.Text);
+        Assert.Null((await context.RecipeDrafts.SingleAsync()).MediaFilePath);
     }
 }
