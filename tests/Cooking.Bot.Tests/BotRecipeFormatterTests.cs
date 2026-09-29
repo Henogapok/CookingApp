@@ -1,3 +1,4 @@
+using Cooking.Application.RecipeDrafts;
 using Cooking.Application.Recipes;
 using Cooking.Application.Tags;
 
@@ -11,7 +12,8 @@ public class BotRecipeFormatterTests
         string title = "Борщ",
         string? description = null,
         string? sourceUrl = null,
-        int cookingTimeMinutes = 45,
+        int? cookingTimeMinutes = 45,
+        int? servings = 4,
         List<RecipeIngredientDto>? ingredients = null,
         List<RecipeStepDto>? steps = null,
         List<TagDto>? tags = null) =>
@@ -19,13 +21,15 @@ public class BotRecipeFormatterTests
             Guid.NewGuid(), title, description, sourceUrl,
             Guid.NewGuid(), "Manual",
             Guid.NewGuid(), "Easy",
-            Servings: 4, cookingTimeMinutes,
+            servings, cookingTimeMinutes,
             AuthorId, "Аня",
             DateTime.UtcNow, DateTime.UtcNow,
             ingredients ?? [], steps ?? [], tags ?? []);
 
-    private static RecipeIngredientDto Ingredient(string name, decimal amount, string unit = "г") =>
-        new(Guid.NewGuid(), name, amount, Guid.NewGuid(), unit, unit);
+    private static RecipeIngredientDto Ingredient(string name, decimal? amount, string unit = "г", bool estimatedByLlm = false) =>
+        amount is null
+            ? new(Guid.NewGuid(), name, null, null, null, null, estimatedByLlm)
+            : new(Guid.NewGuid(), name, amount, Guid.NewGuid(), unit, unit, estimatedByLlm);
 
     [Fact]
     public void FormatCard_EscapesHtmlInUserText()
@@ -148,5 +152,78 @@ public class BotRecipeFormatterTests
         var recipe = new RecipeSummaryDto(Guid.NewGuid(), "Борщ", "Easy", 4, 45, AuthorId, "Аня");
 
         Assert.Equal("Борщ · Аня", BotRecipeFormatter.FormatListButton(recipe, Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void FormatCard_ToTasteIngredient_ShowsToTaste()
+    {
+        var card = BotRecipeFormatter.FormatCard(CreateRecipe(ingredients: [Ingredient("Соль", null)]), AuthorId);
+
+        Assert.Contains("• Соль — по вкусу", card);
+    }
+
+    [Fact]
+    public void FormatCard_IngredientWithLlmNutrition_IsMarkedWithLegend()
+    {
+        var recipe = CreateRecipe(ingredients: [Ingredient("Кунжут", 10, estimatedByLlm: true), Ingredient("Рис", 200)]);
+
+        var card = BotRecipeFormatter.FormatCard(recipe, AuthorId);
+
+        Assert.Contains("• Кунжут 🤖 — 10 г", card);
+        Assert.Contains("• Рис — 200 г", card);
+        Assert.Contains("🤖 — КБЖУ оценил ИИ", card);
+    }
+
+    [Fact]
+    public void FormatCard_UnknownServingsAndTime_AreOmitted()
+    {
+        var card = BotRecipeFormatter.FormatCard(CreateRecipe(cookingTimeMinutes: null, servings: null), AuthorId);
+
+        Assert.DoesNotContain("⏱", card);
+        Assert.DoesNotContain("порц.", card);
+        Assert.Contains("📊 Easy", card);
+    }
+
+    private static RecipeDraftDto CreateDraft(
+        int? servings = null,
+        bool servingsIsEstimate = false,
+        int? cookingTimeMinutes = 90,
+        List<RecipeDraftIngredientDto>? ingredients = null) =>
+        new(
+            Guid.NewGuid(), "Плов <узбекский>", null, "Medium",
+            servings, servingsIsEstimate, cookingTimeMinutes, CookingTimeIsEstimate: false,
+            CanApplyEstimates: servings is null,
+            ingredients ?? [new RecipeDraftIngredientDto("Рис", 500, "г", IsNew: false)],
+            [new RecipeStepDto(1, "Обжарить мясо", null)],
+            ["Ужин"],
+            DateTime.UtcNow.AddDays(1));
+
+    [Fact]
+    public void FormatDraft_ShowsWhatIsMissingAndEstimated()
+    {
+        var missing = BotRecipeFormatter.FormatDraft(CreateDraft());
+        var estimated = BotRecipeFormatter.FormatDraft(CreateDraft(servings: 4, servingsIsEstimate: true, cookingTimeMinutes: null));
+
+        Assert.Contains("<b>Плов &lt;узбекский&gt;</b>", missing);
+        Assert.Contains("⏱ 1 ч 30 мин", missing);
+        Assert.Contains("👥 порции не указаны", missing);
+        Assert.Contains("👥 4 порц. (🤖 оценка ИИ)", estimated);
+        Assert.Contains("⏱ время не указано", estimated);
+    }
+
+    [Fact]
+    public void FormatDraft_NewIngredients_AreMarkedWithLegend()
+    {
+        var draft = CreateDraft(ingredients:
+        [
+            new RecipeDraftIngredientDto("Рис", 500, "г", IsNew: false),
+            new RecipeDraftIngredientDto("Зира", null, null, IsNew: true),
+        ]);
+
+        var text = BotRecipeFormatter.FormatDraft(draft);
+
+        Assert.Contains("• Рис — 500 г", text);
+        Assert.Contains("• Зира 🤖 — по вкусу", text);
+        Assert.Contains("🤖 — новый ингредиент", text);
     }
 }

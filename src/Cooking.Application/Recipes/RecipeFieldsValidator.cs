@@ -12,15 +12,19 @@ public class RecipeFieldsValidator : AbstractValidator<RecipeFields>
         RuleFor(x => x.SourceUrl).MaximumLength(2048);
         RuleFor(x => x.SourceTypeId).NotEmpty();
         RuleFor(x => x.ComplexityId).NotEmpty();
-        RuleFor(x => x.Servings).GreaterThanOrEqualTo(1);
-        RuleFor(x => x.CookingTimeMinutes).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.Servings).GreaterThanOrEqualTo(1).When(x => x.Servings is not null);
+        RuleFor(x => x.CookingTimeMinutes).GreaterThanOrEqualTo(0).When(x => x.CookingTimeMinutes is not null);
 
         RuleFor(x => x.Ingredients).NotNull();
         RuleForEach(x => x.Ingredients).ChildRules(ingredient =>
         {
             ingredient.RuleFor(i => i.IngredientCatalogId).NotEmpty();
-            ingredient.RuleFor(i => i.UnitId).NotEmpty();
-            ingredient.RuleFor(i => i.Amount).GreaterThan(0);
+            ingredient.RuleFor(i => i.Amount).GreaterThan(0).When(i => i.Amount is not null);
+            ingredient.RuleFor(i => i.UnitId).NotEmpty().When(i => i.UnitId is not null);
+            ingredient.RuleFor(i => i)
+                .Must(i => (i.Amount is null) == (i.UnitId is null))
+                .WithName("Ingredient")
+                .WithMessage("Amount and UnitId must be both set or both empty (\"to taste\").");
         });
 
         RuleFor(x => x.Steps).NotNull();

@@ -1,3 +1,4 @@
+using Cooking.Application.RecipeDrafts;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Telegram.Bot;
@@ -22,6 +23,9 @@ public static class BotServiceCollectionExtensions
 
         services.AddSingleton<BotInfoProvider>();
         services.AddScoped<BotUpdateHandler>();
+
+        // Перекрывает реализацию по умолчанию (Infrastructure регистрирует её через TryAdd).
+        services.AddScoped<IRecipeDraftNotifier, BotRecipeDraftNotifier>();
 
         if (options.UseWebhook)
             services.AddHostedService<BotWebhookRegistrationService>();

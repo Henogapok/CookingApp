@@ -11,8 +11,8 @@ public record RecipeRequest(
     string? SourceUrl,
     Guid SourceTypeId,
     Guid ComplexityId,
-    int Servings,
-    int CookingTimeMinutes,
+    int? Servings,
+    int? CookingTimeMinutes,
     List<RecipeIngredientRequest> Ingredients,
     List<RecipeStepRequest> Steps,
     List<Guid> TagIds)
@@ -31,8 +31,8 @@ public record RecipeRequest(
         TagIds ?? []);
 }
 
-/// <summary>Порядок ингредиентов в карточке = порядок в списке.</summary>
-public record RecipeIngredientRequest(Guid IngredientCatalogId, decimal Amount, Guid UnitId);
+/// <summary>Порядок ингредиентов в карточке = порядок в списке. Amount и UnitId = null — «по вкусу».</summary>
+public record RecipeIngredientRequest(Guid IngredientCatalogId, decimal? Amount, Guid? UnitId);
 
 /// <summary>Номер шага = позиция в списке (с 1).</summary>
 public record RecipeStepRequest(string Instruction, int? TimerSeconds);

@@ -11,8 +11,8 @@ public record RecipeDto(
     string SourceTypeName,
     Guid ComplexityId,
     string ComplexityName,
-    int Servings,
-    int CookingTimeMinutes,
+    int? Servings,
+    int? CookingTimeMinutes,
     Guid CreatedByUserId,
     string CreatedByFirstName,
     DateTime CreatedAt,
@@ -24,10 +24,11 @@ public record RecipeDto(
 public record RecipeIngredientDto(
     Guid IngredientCatalogId,
     string IngredientName,
-    decimal Amount,
-    Guid UnitId,
-    string UnitName,
-    string UnitAbbreviation);
+    decimal? Amount,
+    Guid? UnitId,
+    string? UnitName,
+    string? UnitAbbreviation,
+    bool IsNutritionEstimatedByLlm);
 
 public record RecipeStepDto(int StepNumber, string Instruction, int? TimerSeconds);
 
@@ -36,7 +37,7 @@ public record RecipeSummaryDto(
     Guid Id,
     string Title,
     string ComplexityName,
-    int Servings,
-    int CookingTimeMinutes,
+    int? Servings,
+    int? CookingTimeMinutes,
     Guid CreatedByUserId,
     string CreatedByFirstName);

@@ -11,11 +11,12 @@ public class RecipeIngredient : BaseEntity
     public Guid IngredientCatalogId { get; set; }
     public IngredientCatalog IngredientCatalog { get; set; } = null!;
 
-    public decimal Amount { get; set; }
+    /// <summary>null вместе с UnitId — «по вкусу»: такой ингредиент не идёт в расчёт КБЖУ/стоимости.</summary>
+    public decimal? Amount { get; set; }
 
     /// <summary>Единица в этом рецепте — может отличаться от базовой единицы ингредиента.</summary>
-    public Guid UnitId { get; set; }
-    public MeasurementUnit Unit { get; set; } = null!;
+    public Guid? UnitId { get; set; }
+    public MeasurementUnit? Unit { get; set; }
 
     /// <summary>Порядок отображения в карточке рецепта.</summary>
     public int SortOrder { get; set; }

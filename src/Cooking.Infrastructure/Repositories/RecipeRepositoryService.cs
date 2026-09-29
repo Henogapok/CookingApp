@@ -6,6 +6,7 @@ using Cooking.Application.Tags;
 using Cooking.Domain.Entities.Recipes;
 using Cooking.Domain.Entities.Tags;
 using Cooking.Domain.Entities.Users;
+using Cooking.Domain.ReferenceData;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
 
@@ -121,8 +122,9 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                         i.IngredientCatalog.Name,
                         i.Amount,
                         i.UnitId,
-                        i.Unit.Name,
-                        i.Unit.Abbreviation))
+                        i.Unit != null ? i.Unit.Name : null,
+                        i.Unit != null ? i.Unit.Abbreviation : null,
+                        i.IngredientCatalog.NutritionSourceId == ReferenceIds.DataSources.Llm))
                     .ToList(),
                 r.Steps
                     .OrderBy(s => s.StepNumber)
@@ -243,7 +245,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
 
         var missingUnits = await FindMissingAsync(
             dataContext.MeasurementUnits.Select(x => x.Id),
-            fields.Ingredients.Select(x => x.UnitId), cancellationToken);
+            fields.Ingredients.Where(x => x.UnitId is not null).Select(x => x.UnitId!.Value), cancellationToken);
         if (missingUnits.Count > 0)
             return MissingReferences("MeasurementUnit", missingUnits);
 
