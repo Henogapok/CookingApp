@@ -75,9 +75,12 @@ public static class BotRecipeFormatter
     public static string FormatDraft(RecipeDraftDto draft)
     {
         var header = new StringBuilder();
-        header.AppendLine(draft.RecipeId is null
-            ? "📝 Вот что я разобрал — проверь, пожалуйста:"
-            : "✏️ Так будет выглядеть рецепт после изменений — проверь:").AppendLine();
+        header.AppendLine(draft switch
+        {
+            { RecipeId: not null } => "✏️ Так будет выглядеть рецепт после изменений — проверь:",
+            { DishNumber: { } number, DishCount: { } count } => $"📝 Блюдо {number} из {count} — проверь, пожалуйста:",
+            _ => "📝 Вот что я разобрал — проверь, пожалуйста:",
+        }).AppendLine();
         header.AppendLine($"🍽 <b>{Html(draft.Title)}</b>");
 
         if (!string.IsNullOrWhiteSpace(draft.Description))

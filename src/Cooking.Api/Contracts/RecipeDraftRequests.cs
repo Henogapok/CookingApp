@@ -8,3 +8,5 @@ public record RecipeDraftActorRequest(Guid UserId);
 public record CorrectRecipeDraftRequest(Guid UserId, string Text);
 
 public record CreateRecipeDraftFromUrlRequest(Guid UserId, string Url);
+
+public record SelectRecipeDraftDishesRequest(Guid UserId, List<int> DishIndexes);

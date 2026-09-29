@@ -55,6 +55,20 @@ public class RecipeDraftsController : BaseController
             : HandleResult(result);
     }
 
+    /// <summary>
+    /// В тексте больше блюд, чем разбирается за раз: выбрать нужные (номера в списке, с нуля). Разбор — в фоне,
+    /// каждое блюдо становится отдельным черновиком.
+    /// </summary>
+    [HttpPost("{id:guid}/dishes")]
+    public async Task<IActionResult> SelectDishes(Guid id, SelectRecipeDraftDishesRequest request, CancellationToken cancellationToken)
+    {
+        var result = await Mediator.Send(new SelectRecipeDraftDishesCommand(id, request.UserId, request.DishIndexes), cancellationToken);
+
+        return result.IsSuccess
+            ? AcceptedAtAction(nameof(GetById), new { id, userId = request.UserId }, null)
+            : HandleResult(result);
+    }
+
     /// <summary>Сохранить черновик как рецепт; возвращает Id рецепта.</summary>
     [HttpPost("{id:guid}/confirm")]
     public async Task<IActionResult> Confirm(Guid id, RecipeDraftActorRequest request, CancellationToken cancellationToken)

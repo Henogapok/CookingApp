@@ -27,8 +27,8 @@ public class ParseRecipeDraftCommandHandler(
 
         var source = sourceResult.Value;
 
-        // Черновик уже разобран и правки нет — делать нечего (например, задача пришла повторно).
-        if (source.Content is not null && source.PendingCorrection is null)
+        // Черновик уже разобран и правки нет, или ждёт выбора блюд — делать нечего (например, задача пришла повторно).
+        if ((source.Content is not null && source.PendingCorrection is null) || source.IsAwaitingDishChoice)
             return Result.Ok();
 
         var isCorrection = source.Content is not null;
@@ -56,7 +56,8 @@ public class ParseRecipeDraftCommandHandler(
                 catalogResult.Value.Select(i => i.Name).ToList(),
                 tagsResult.Value.Select(t => t.Name).ToList(),
                 isCorrection ? RecipeDraftMapper.ToCorrectionJson(source.Content!, tagsResult.Value.ToDictionary(t => t.Id, t => t.Name)) : null,
-                source.PendingCorrection),
+                source.PendingCorrection,
+                isCorrection ? null : source.SelectedDishes),
             cancellationToken);
 
         if (parsed.IsFailed)
@@ -68,34 +69,103 @@ public class ParseRecipeDraftCommandHandler(
             return await FailAsync(source, isCorrection, reason, parsed.ToResult(), cancellationToken);
         }
 
-        var content = RecipeDraftMapper.ToDraftContent(
-            parsed.Value,
-            ToKeyMap(catalogResult.Value.Select(i => (i.Name, i.Id))),
-            ToKeyMap(tagsResult.Value.Select(t => (t.Name, t.Id))));
+        var catalogIds = ToKeyMap(catalogResult.Value.Select(i => (i.Name, i.Id)));
+        var tagIds = ToKeyMap(tagsResult.Value.Select(t => (t.Name, t.Id)));
+        var contents = (parsed.Value.Recipes ?? [])
+            .Select(recipe => RecipeDraftMapper.ToDraftContent(recipe, catalogIds, tagIds))
+            .OfType<RecipeDraftContent>()
+            .ToList();
 
-        if (content is null)
+        return isCorrection
+            ? await ApplyCorrectionAsync(source, contents.FirstOrDefault(), cancellationToken)
+            : await ApplyFirstParseAsync(source, parsed.Value, contents, cancellationToken);
+    }
+
+    /// <summary>
+    /// Каждое блюдо — свой черновик: первое кладём в этот, остальные — в новые с тем же исходным текстом.
+    /// Блюд больше лимита (и пользователь ещё не выбирал) — предлагаем выбрать.
+    /// </summary>
+    private async Task<Result> ApplyFirstParseAsync(
+        RecipeDraftSource source, ParsedRecipes parsed, List<RecipeDraftContent> contents, CancellationToken cancellationToken)
+    {
+        if (contents.Count == 0 && source.SelectedDishes is null
+            && RecipeDraftMapper.ToDishChoices(parsed.Dishes) is { Count: > RecipeDraftLimits.MaxDishes } dishes)
         {
-            // Не ошибка сервиса: пользователь прислал не рецепт (или правка «удалила» весь рецепт).
-            await FailAsync(source, isCorrection, RecipeDraftFailureReason.NotARecipe, Result.Ok(), cancellationToken);
+            var choiceSaved = await drafts.SetDishChoicesAsync(source.Id, dishes, cancellationToken);
+            if (choiceSaved.IsFailed)
+                return choiceSaved; // черновик удалили, пока шёл разбор
+
+            await notifier.DishChoiceRequiredAsync(source.Id, source.UserId, dishes, cancellationToken);
             return Result.Ok();
         }
 
-        // Рецепт из Reels помнит, откуда он.
-        if (!isCorrection && source.SourceUrl is not null)
-            content = content with { SourceUrl = source.SourceUrl, SourceTypeId = ReferenceIds.SourceTypes.Instagram };
-
-        // После правки не должны слетать «Оценить» и привязка к изменяемому рецепту (с его источником).
-        if (isCorrection)
+        if (contents.Count == 0)
         {
-            var current = source.Content!;
-            content = content with
-            {
-                UseEstimates = current.UseEstimates,
-                RecipeId = current.RecipeId,
-                SourceUrl = current.SourceUrl,
-                SourceTypeId = current.SourceTypeId,
-            };
+            // Не ошибка сервиса: пользователь прислал не рецепт.
+            await FailAsync(source, isCorrection: false, RecipeDraftFailureReason.NotARecipe, Result.Ok(), cancellationToken);
+            return Result.Ok();
         }
+
+        // LLM мог и не послушаться лимита — лишнее отбрасываем.
+        contents = contents.Take(RecipeDraftLimits.MaxDishes).ToList();
+
+        var draftIds = new List<Guid>();
+        for (var i = 0; i < contents.Count; i++)
+        {
+            var content = contents[i];
+
+            // Рецепт из Reels помнит, откуда он.
+            if (source.SourceUrl is not null)
+                content = content with { SourceUrl = source.SourceUrl, SourceTypeId = ReferenceIds.SourceTypes.Instagram };
+
+            if (contents.Count > 1)
+                content = content with { DishNumber = i + 1, DishCount = contents.Count };
+
+            if (i == 0)
+            {
+                var saved = await drafts.SetContentAsync(source.Id, content, cancellationToken);
+                if (saved.IsFailed)
+                    return saved; // черновик удалили, пока шёл разбор, — сообщать некому
+
+                draftIds.Add(source.Id);
+            }
+            else
+            {
+                var sibling = await drafts.CreateSiblingAsync(source.Id, content, cancellationToken);
+                if (sibling.IsFailed)
+                    return sibling.ToResult();
+
+                draftIds.Add(sibling.Value);
+            }
+        }
+
+        foreach (var draftId in draftIds)
+            await notifier.DraftReadyAsync(draftId, source.UserId, cancellationToken);
+
+        return Result.Ok();
+    }
+
+    private async Task<Result> ApplyCorrectionAsync(
+        RecipeDraftSource source, RecipeDraftContent? content, CancellationToken cancellationToken)
+    {
+        if (content is null)
+        {
+            // Правка «удалила» весь рецепт.
+            await FailAsync(source, isCorrection: true, RecipeDraftFailureReason.NotARecipe, Result.Ok(), cancellationToken);
+            return Result.Ok();
+        }
+
+        // После правки не должны слетать «Оценить», привязка к изменяемому рецепту (с его источником) и номер блюда.
+        var current = source.Content!;
+        content = content with
+        {
+            UseEstimates = current.UseEstimates,
+            RecipeId = current.RecipeId,
+            SourceUrl = current.SourceUrl,
+            SourceTypeId = current.SourceTypeId,
+            DishNumber = current.DishNumber,
+            DishCount = current.DishCount,
+        };
 
         var saved = await drafts.SetContentAsync(source.Id, content, cancellationToken);
         if (saved.IsFailed)

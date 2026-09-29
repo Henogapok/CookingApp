@@ -164,6 +164,13 @@ public class BotUpdateHandler(
 
     private async Task HandleCallbackAsync(CallbackQuery callback, TelegramUser from, string data, CancellationToken cancellationToken)
     {
+        // Выбор блюд отвечает на callback сам — иногда всплывающей подсказкой («не больше 5»).
+        if (data.StartsWith(BotCallbacks.DishPrefix, StringComparison.Ordinal))
+        {
+            await HandleDishCallbackAsync(callback, from, data, cancellationToken);
+            return;
+        }
+
         // Telegram показывает "часики" на кнопке, пока на callback не ответили.
         await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
 
@@ -232,6 +239,62 @@ public class BotUpdateHandler(
                 await ApplyDraftEstimatesAsync(chatId, callback.Message.Id, user, draftId, cancellationToken);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Блюд больше лимита: отметки ✅/⬜ переключаются прямо в клавиатуре (состояние — в ней же),
+    /// «Разобрать выбранные» отправляет отмеченные в SelectRecipeDraftDishesCommand.
+    /// </summary>
+    private async Task HandleDishCallbackAsync(CallbackQuery callback, TelegramUser from, string data, CancellationToken cancellationToken)
+    {
+        if (callback.Message is not { ReplyMarkup: { } markup } message)
+        {
+            await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
+            return;
+        }
+
+        if (BotCallbacks.ParseDishToggle(data) is { } toggle)
+        {
+            var toggled = BotKeyboards.ToggleDish(markup, toggle.DraftId, toggle.Index, RecipeDraftLimits.MaxDishes);
+            await bot.AnswerCallbackQuery(callback.Id,
+                toggled is null ? $"За раз — не больше {RecipeDraftLimits.MaxDishes} блюд" : null,
+                cancellationToken: cancellationToken);
+
+            if (toggled is not null)
+                await bot.EditMessageReplyMarkup(message.Chat.Id, message.Id, toggled, cancellationToken: cancellationToken);
+            return;
+        }
+
+        var selected = BotKeyboards.SelectedDishes(markup);
+        if (BotCallbacks.MatchId(data, BotCallbacks.DishGoPrefix) is not { } draftId || selected.Count == 0)
+        {
+            await bot.AnswerCallbackQuery(callback.Id, selected.Count == 0 ? "Отметь хотя бы одно блюдо" : null,
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        await bot.AnswerCallbackQuery(callback.Id, cancellationToken: cancellationToken);
+
+        var chatId = message.Chat.Id;
+        var user = await RegisterAsync(from, cancellationToken);
+        if (user is null)
+        {
+            await bot.SendMessage(chatId, GenericErrorText, cancellationToken: cancellationToken);
+            return;
+        }
+
+        var result = await mediator.Send(
+            new SelectRecipeDraftDishesCommand(draftId, user.Id, selected.Select(d => d.Index).ToList()), cancellationToken);
+        if (result.IsFailed)
+        {
+            await ReportDraftFailureAsync(chatId, user, result, "select recipe draft dishes", cancellationToken);
+            return;
+        }
+
+        // Кнопки убираем, чтобы не выбрать второй раз; превью придут отдельными сообщениями.
+        await bot.EditMessageText(chatId, message.Id,
+            $"⏳ Разбираю: {string.Join(", ", selected.Select(d => d.Title))}. Каждое блюдо пришлю отдельным сообщением.",
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>Все доступные рецепты кнопками + приглашение к поиску по названию.</summary>
