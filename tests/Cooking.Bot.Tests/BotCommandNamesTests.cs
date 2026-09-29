@@ -30,4 +30,29 @@ public class BotCommandNamesTests
     {
         Assert.Equal("abc_123", BotCommandNames.MatchArguments("/start abc_123", BotCommandNames.Start));
     }
+
+    [Fact]
+    public void Callbacks_DraftButtons_FitTelegramLimitAndRoundTrip()
+    {
+        var draftId = Guid.NewGuid();
+
+        foreach (var (data, prefix) in new[]
+                 {
+                     (BotCallbacks.DraftSave(draftId), BotCallbacks.DraftSavePrefix),
+                     (BotCallbacks.DraftCancel(draftId), BotCallbacks.DraftCancelPrefix),
+                     (BotCallbacks.DraftEstimate(draftId), BotCallbacks.DraftEstimatePrefix),
+                 })
+        {
+            Assert.True(System.Text.Encoding.UTF8.GetByteCount(data) <= 64, data);
+            Assert.Equal(draftId, BotCallbacks.MatchId(data, prefix));
+        }
+    }
+
+    [Theory]
+    [InlineData("draft:save:not-a-guid")]
+    [InlineData("recipe:00000000-0000-0000-0000-000000000001")]
+    public void Callbacks_MatchId_OtherData_ReturnsNull(string data)
+    {
+        Assert.Null(BotCallbacks.MatchId(data, BotCallbacks.DraftSavePrefix));
+    }
 }

@@ -10,12 +10,13 @@ public record RecipeFields(
     string? SourceUrl,
     Guid SourceTypeId,
     Guid ComplexityId,
-    int Servings,
-    int CookingTimeMinutes,
+    int? Servings,
+    int? CookingTimeMinutes,
     List<RecipeIngredientFields> Ingredients,
     List<RecipeStepFields> Steps,
     List<Guid> TagIds);
 
-public record RecipeIngredientFields(Guid IngredientCatalogId, decimal Amount, Guid UnitId);
+/// <summary>Amount и UnitId либо оба заданы, либо оба null («по вкусу»).</summary>
+public record RecipeIngredientFields(Guid IngredientCatalogId, decimal? Amount, Guid? UnitId);
 
 public record RecipeStepFields(string Instruction, int? TimerSeconds);

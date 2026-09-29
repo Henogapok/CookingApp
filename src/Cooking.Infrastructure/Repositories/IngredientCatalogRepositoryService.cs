@@ -16,7 +16,8 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         e.BaseUnitId, e.BaseUnit.Name, e.BaseUnit.Abbreviation,
         e.PricePer100g, e.CaloriesPer100g, e.ProteinPer100g, e.FatPer100g, e.CarbsPer100g,
         e.CreatedBySourceId, e.CreatedBySource.Name,
-        e.NutritionSourceId, e.NutritionSource.Name);
+        e.NutritionSourceId, e.NutritionSource.Name,
+        e.PieceWeight);
 
     public async Task<Result<Guid>> CreateAsync(IngredientCatalogFields fields, CancellationToken cancellationToken)
     {
@@ -36,6 +37,7 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
             CarbsPer100g = fields.CarbsPer100G,
             CreatedBySourceId = fields.CreatedBySourceId,
             NutritionSourceId = fields.NutritionSourceId,
+            PieceWeight = fields.PieceWeight,
         };
 
         dataContext.IngredientCatalog.Add(entity);
@@ -65,6 +67,7 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         entity.CarbsPer100g = fields.CarbsPer100G;
         entity.CreatedBySourceId = fields.CreatedBySourceId;
         entity.NutritionSourceId = fields.NutritionSourceId;
+        entity.PieceWeight = fields.PieceWeight;
 
         await dataContext.SaveChangesAsync(cancellationToken);
 
@@ -104,6 +107,16 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
             .ToListAsync(cancellationToken);
 
         return Result.Ok(items);
+    }
+
+    public async Task SetPieceWeightIfMissingAsync(Guid id, decimal pieceWeight, CancellationToken cancellationToken)
+    {
+        var entity = await dataContext.IngredientCatalog.FindAsync([id], cancellationToken);
+        if (entity is null || entity.PieceWeight is not null)
+            return;
+
+        entity.PieceWeight = pieceWeight;
+        await dataContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<Result> ValidateForeignKeysAsync(IngredientCatalogFields fields, CancellationToken cancellationToken)

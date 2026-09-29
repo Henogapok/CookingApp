@@ -17,6 +17,7 @@ public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbCo
     public DbSet<Recipe> Recipes => Set<Recipe>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
     public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
+    public DbSet<RecipeDraft> RecipeDrafts => Set<RecipeDraft>();
     public DbSet<SourceType> SourceTypes => Set<SourceType>();
     public DbSet<Complexity> Complexities => Set<Complexity>();
 

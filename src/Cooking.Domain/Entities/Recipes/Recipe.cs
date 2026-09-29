@@ -22,8 +22,11 @@ public class Recipe : BaseEntity
     public Guid ComplexityId { get; set; }
     public Complexity Complexity { get; set; } = null!;
 
-    public int Servings { get; set; }
-    public int CookingTimeMinutes { get; set; }
+    /// <summary>null — в источнике не указано (не выдумываем).</summary>
+    public int? Servings { get; set; }
+
+    /// <summary>null — в источнике не указано (не выдумываем).</summary>
+    public int? CookingTimeMinutes { get; set; }
 
     // КБЖУ и стоимость не хранятся: считаются из IngredientCatalog (позже — через view в БД),
     // чтобы изменение цены/КБЖУ ингредиента сразу отражалось во всех рецептах.

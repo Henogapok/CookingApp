@@ -29,7 +29,8 @@ public class IngredientCatalogController : BaseController
                 request.FatPer100G,
                 request.CarbsPer100G,
                 request.CreatedBySourceId,
-                request.NutritionSourceId),
+                request.NutritionSourceId,
+                request.PieceWeight),
             cancellationToken);
 
         return result.IsSuccess
@@ -51,7 +52,8 @@ public class IngredientCatalogController : BaseController
                 request.FatPer100G,
                 request.CarbsPer100G,
                 request.CreatedBySourceId,
-                request.NutritionSourceId),
+                request.NutritionSourceId,
+                request.PieceWeight),
             cancellationToken));
 
     [HttpDelete("{id:guid}")]
