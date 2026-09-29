@@ -59,7 +59,7 @@ Domain ← Application ← Infrastructure
 - Запуск API: `dotnet run --project src/Cooking.Api`
 - Запуск Worker: `dotnet run --project src/Cooking.Worker`
 - Поднять инфраструктуру (Postgres на 5432, RabbitMQ на 5672 / management UI на 15672): `docker compose up -d`
-- Тестового проекта пока нет; когда появится, точка входа — `dotnet test` (для одного теста: `--filter FullyQualifiedName~<Name>`)
+- Тесты: `dotnet test` (для одного теста: `--filter FullyQualifiedName~<Name>`). `tests/Cooking.Application.Tests` — репозитории на EF InMemory; `tests/Cooking.Bot.Tests` — только чистые функции бота (разбор команд, форматирование карточки)
 
 ## MVP — скоуп первой версии
 
