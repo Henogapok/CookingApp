@@ -2,9 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [ main, dev ]
+    # main проверяет workflow деплоя (вызывает этот же CI перед сборкой образа).
+    branches: [ dev ]
   pull_request:
     branches: [ main, dev ]
+  workflow_call:
 
 jobs:
   build-and-test:

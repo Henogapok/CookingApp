@@ -1,0 +1,12 @@
+# Caddy сам получает и продлевает HTTPS-сертификат Let's Encrypt для домена из .env.
+{$DOMAIN} {
+	# Наружу пока открыт только webhook Telegram: у REST-API ещё нет авторизации (UserId передаётся в запросе),
+	# поэтому контроллеры доступны только изнутри сервера. Откроем вместе с PWA и Telegram Login.
+	handle /api/telegram/webhook {
+		reverse_proxy api:8080
+	}
+
+	handle {
+		respond 404
+	}
+}

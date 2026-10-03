@@ -110,6 +110,10 @@ Domain ← Application ← Infrastructure
 - Импорт/экспорт в JSON
 - Видимость рецепта (Private / Family / Public, справочник RecipeVisibility): владение (кто редактирует) ≠ видимость (кто видит)
 - Общий каталог публичных рецептов (база знаний для всех пользователей, с пагинацией), шаринг рецепта ссылкой, «скопировать себе»
+- Сканирование чека → цены (KZT) в каталог ингредиентов (см. идею в конце файла)
+- Текст на экране в Reels (рецепт только в титрах): кадры из видео → Claude vision
+- Inline-режим: `@бот запрос` в любом чате (нужен `IsPersonal = true`)
+- Возможная фича (в реальности пока не встречалась): ссылка на сайт внутри присланного текста → сохранять как источник рецепта (SourceType Website)
 
 ## Схема базы данных (Code First, EF Core + PostgreSQL)
 
@@ -423,8 +427,10 @@ Postgres (`recipe-db`, порт 5432) и RabbitMQ (`recipe-mq`, AMQP 5672 / mana
 
 ## Хостинг (прод)
 
-- VPS: Hetzner CX23 (2 vCPU, 4GB RAM, 40GB SSD, ~€4/мес)
-- Всё в Docker на VPS
+- VPS: Vultr High Performance (1 vCPU, 2 ГБ RAM, 50 ГБ NVMe, Frankfurt, Ubuntu 26.04), `linuxuser@80.240.24.108`, домен `cocking.fyi`
+- Всё в Docker: `deploy/docker-compose.yml` — Api (с ботом, webhook) + Postgres + Seq + Caddy (HTTPS). RabbitMQ в проде нет
+- Деплой: push в main → `.github/workflows/deploy.yml` (тесты → образ из `Dockerfile` в GHCR → по SSH `docker compose up -d`). Секреты — GitHub Secrets, workflow пишет из них `~/cooking/.env`. Миграции применяются при старте Api (`Database:MigrateOnStartup`). Пошагово — `deploy/README.md`
+- Наружу через Caddy открыт только webhook Telegram: REST-API без авторизации, откроем вместе с PWA
 - Whisper API + LLM API: ~$2-4/мес при 20-30 рецептах
 
 

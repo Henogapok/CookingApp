@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/*.user
+.git/
+.github/
+.idea/
+.vs/
+.claude/
+tests/
+deploy/
+src/Cooking.Worker/
+src/Screens/
+docker-compose.yml
+*.md
