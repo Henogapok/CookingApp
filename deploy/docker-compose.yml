@@ -1,0 +1,90 @@
+# Прод на VPS: Api (с ботом) + Postgres + Seq + Caddy. Значения ${...} — из .env рядом (его пишет workflow деплоя).
+# Наружу открыт только Caddy (80/443). Docker обходит ufw для опубликованных портов,
+# поэтому у Postgres и Api портов нет совсем, а Seq слушает только localhost (смотреть через SSH-туннель).
+name: cooking
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: ghcr.io/henogapok/cooking-api:${API_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=recipe_db;Username=recipe_user;Password=${POSTGRES_PASSWORD:?}"
+      Database__MigrateOnStartup: "true"
+      Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:?}
+      Telegram__UseWebhook: "true"
+      Telegram__WebhookUrl: https://${DOMAIN:?}/api/telegram/webhook
+      Telegram__WebhookSecretToken: ${TELEGRAM_WEBHOOK_SECRET:?}
+      Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      # Console (WriteTo:0) — из appsettings.json, сюда добавляем Seq вторым sink'ом.
+      Serilog__WriteTo__1__Name: Seq
+      Serilog__WriteTo__1__Args__serverUrl: http://seq
+    mem_limit: 1g
+    logging: *logging
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: recipe_user
+      # Применяется только при первом создании тома pg_data; потом пароль меняется через ALTER USER.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: recipe_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recipe_user -d recipe_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+    logging: *logging
+
+  seq:
+    image: datalust/seq:latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      # Порт смотрит только на localhost сервера — без авторизации, как и локально.
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "True"
+      # Доля RAM под кэш событий: на 2 ГБ не даём Seq съесть память.
+      SEQ_CACHE_SYSTEMRAMTARGET: "0.1"
+    ports:
+      - "127.0.0.1:5341:80"
+    volumes:
+      - seq_data:/data
+    mem_limit: 512m
+    logging: *logging
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      DOMAIN: ${DOMAIN:?}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 128m
+    logging: *logging
+
+volumes:
+  pg_data:
+  seq_data:
+  caddy_data:
+  caddy_config:
