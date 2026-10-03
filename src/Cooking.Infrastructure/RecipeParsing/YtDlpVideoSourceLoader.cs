@@ -53,6 +53,7 @@ public class YtDlpVideoSourceLoader(IOptions<YtDlpOptions> options, ILogger<YtDl
         await _downloadGate.WaitAsync(cancellationToken);
         try
         {
+            var started = Stopwatch.GetTimestamp();
             var run = await RunAsync(settings, arguments, cancellationToken);
             if (run.IsFailed)
                 return run.ToResult<VideoSource>();
@@ -65,7 +66,15 @@ public class YtDlpVideoSourceLoader(IOptions<YtDlpOptions> options, ILogger<YtDl
             }
 
             var audioFile = Directory.GetFiles(TempDirectory, fileName + ".*").FirstOrDefault();
-            return Result.Ok(new VideoSource(ReadDescription(stdout), audioFile));
+            var description = ReadDescription(stdout);
+
+            logger.LogInformation(
+                "yt-dlp loaded {Url} in {ElapsedMs} ms: description {DescriptionLength} chars, audio {AudioFile} ({AudioKb} KB)",
+                url, (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds, description?.Length ?? 0,
+                audioFile is null ? "none" : Path.GetFileName(audioFile),
+                audioFile is null ? 0 : new FileInfo(audioFile).Length / 1024);
+
+            return Result.Ok(new VideoSource(description, audioFile));
         }
         finally
         {
