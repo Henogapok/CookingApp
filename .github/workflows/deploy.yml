@@ -1,0 +1,97 @@
+name: Deploy
+
+# Каждый push в main: тесты → образ Api в GHCR → на сервере docker compose up. Инструкция — deploy/README.md.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Два деплоя подряд не перемешиваются: второй ждёт первый.
+concurrency: deploy
+
+env:
+  IMAGE: ghcr.io/henogapok/cooking-api
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TARGET: ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Write .env
+        env:
+          DOMAIN: ${{ vars.DOMAIN }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          umask 077
+          {
+            printf 'DOMAIN=%s\n' "$DOMAIN"
+            printf 'API_TAG=%s\n' "$GITHUB_SHA"
+            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
+            printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
+            printf 'TELEGRAM_WEBHOOK_SECRET=%s\n' "$TELEGRAM_WEBHOOK_SECRET"
+            printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
+            printf 'OPENAI_API_KEY=%s\n' "$OPENAI_API_KEY"
+          } > deploy/.env
+
+      - name: Copy files to server
+        run: |
+          ssh "$TARGET" 'mkdir -p ~/cooking && chmod 700 ~/cooking'
+          scp deploy/docker-compose.yml deploy/Caddyfile deploy/.env "$TARGET":~/cooking/
+
+      - name: Start containers
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Токен живёт только пока идёт этот job — образ скачивается сразу, потом выходим из GHCR.
+          printf '%s' "$GHCR_TOKEN" | ssh "$TARGET" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+          ssh "$TARGET" 'cd ~/cooking && docker compose pull && docker compose up -d --remove-orphans; status=$?; docker logout ghcr.io; docker image prune -f; exit $status'

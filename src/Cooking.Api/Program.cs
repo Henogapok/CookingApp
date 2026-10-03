@@ -3,6 +3,7 @@ using Cooking.Api.ExceptionHandling;
 using Cooking.Api.Middleware;
 using Cooking.Application;
 using Cooking.Infrastructure;
+using Cooking.Infrastructure.Persistence;
 using Serilog;
 
 const string PwaCorsPolicy = "Pwa";
@@ -30,6 +31,10 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// До запуска hosted-сервисов (бот, очередь разбора): им уже нужна актуальная схема.
+if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+    await app.Services.MigrateDatabaseAsync();
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
