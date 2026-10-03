@@ -13,6 +13,7 @@ public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbCo
     public DbSet<Family> Families => Set<Family>();
     public DbSet<User> Users => Set<User>();
     public DbSet<FamilyInvite> FamilyInvites => Set<FamilyInvite>();
+    public DbSet<LoginRequest> LoginRequests => Set<LoginRequest>();
 
     public DbSet<Recipe> Recipes => Set<Recipe>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
@@ -33,6 +34,9 @@ public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbCo
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CookingDbContext).Assembly);
+
+        // Таблицы сервера авторизации (Cooking.Auth): клиенты, scope'ы, выданные разрешения и токены.
+        modelBuilder.UseOpenIddict();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

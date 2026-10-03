@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Ещё нет: авторизации (пока `UserId` передаётся в запросе), PWA.
+Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): этап 1 готов локально (вход через бота, JWT в Api, Swagger); виджет Telegram и деплой Auth — следующий этап. Ещё нет: PWA.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -27,19 +27,20 @@ Cooking/
     ├── Cooking.Application/     # MediatR handlers, DTOs, use cases (Class Library)
     ├── Cooking.Infrastructure/  # EF Core, внешние API (Class Library)
     ├── Cooking.Bot/             # Telegram-бот: обработчик апдейтов, клавиатуры, polling/webhook (Class Library)
-    ├── Cooking.Api/             # Web API; хостит бота в своём процессе (ASP.NET Core Web API)
-    └── Cooking.Worker/          # Заготовка под отдельный процесс фоновой обработки; пока не используется (см. «Разбор рецептов из текста»)
+    ├── Cooking.Api/             # Web API; хостит бота и фоновый разбор рецептов в своём процессе (ASP.NET Core Web API)
+    └── Cooking.Auth/            # Сервер авторизации (OpenIddict): вход через Telegram, выдаёт JWT для Api — отдельный процесс/контейнер
 ```
 
 Зависимости между проектами (Clean Architecture, ссылки идут только "внутрь"):
 
 ```
-Domain ← Application ← Infrastructure
+Domain ← Application ← Infrastructure ← Api, Auth
                      ← Bot ← Api (хостит бота)
-                     ← Worker
 ```
 
-Бот — такой же слой представления, как контроллеры Api, поэтому живёт в отдельной библиотеке, а не в Api/Application/Infrastructure. Когда Worker'у понадобится писать пользователю (например, «рецепт из Reels готов»), это делается через интерфейс в Application с реализацией в Infrastructure, а не ссылкой Worker → Bot.
+Бот — такой же слой представления, как контроллеры Api, поэтому живёт в отдельной библиотеке, а не в Api/Application/Infrastructure. Фоновой обработке, которой нужно написать пользователю (например, «рецепт из Reels готов»), бот доступен через интерфейс в Application (`IRecipeDraftNotifier`), а не прямой ссылкой.
+
+`AddInfrastructure` — база и репозитории (нужны Api и Auth), `AddRecipeParsing` — LLM, Reels и фоновая очередь (только Api).
 
 ## Стек
 
@@ -57,7 +58,7 @@ Domain ← Application ← Infrastructure
 
 - Сборка всего решения: `dotnet build Cooking.sln`
 - Запуск API: `dotnet run --project src/Cooking.Api`
-- Запуск Worker: `dotnet run --project src/Cooking.Worker`
+- Запуск Auth: `dotnet run --project src/Cooking.Auth` (https://localhost:7271; для входа и Swagger нужны оба — Api и Auth)
 - Поднять инфраструктуру (Postgres на 5432, RabbitMQ на 5672 / management UI на 15672): `docker compose up -d`
 - Тесты: `dotnet test` (для одного теста: `--filter FullyQualifiedName~<Name>`). `tests/Cooking.Application.Tests` — репозитории на EF InMemory; `tests/Cooking.Bot.Tests` — только чистые функции бота (разбор команд, форматирование карточки)
 
@@ -404,6 +405,26 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Несколько блюд в ролике — см. «Разбор рецептов из текста».
 - Не решено: текст на экране (можно отправлять кадры Claude); кэш по ссылке.
 
+## Авторизация (Cooking.Auth, OAuth 2.0 / OpenID Connect)
+
+Отдельный сервис-сервер авторизации на **OpenIddict**; Api — resource server. Логика (запросы на вход, пользователи) — в Application, Auth — тонкий хост, как Api и бот.
+
+```
+клиент (PWA, Swagger) ──редирект──► Auth /connect/authorize ── нет сессии ──► /login (вход через бота; позже — виджет)
+                      ◄── code ────  сессия Auth (cookie cooking.session) = SSO: другие клиенты входят без логина
+                      ── code + PKCE ─► /connect/token ─► access token (JWT, 15 мин, aud = cooking-api) + refresh token
+                      ── Bearer JWT ─► Api: подпись по ключам Auth (/.well-known/jwks), UserId = claim sub
+```
+
+- Flow — Authorization Code + PKCE, клиенты публичные (без секрета). Клиенты и их redirect URI — в конфиге `Auth:Clients`, при старте `OpenIddictClientSeeder` создаёт/обновляет их в базе. Scope API — `cooking-api` (он же audience).
+- Таблицы OpenIddict — в `CookingDbContext` (`modelBuilder.UseOpenIddict()`), миграции общие. Миграции при старте применяют оба сервиса — под advisory lock Postgres (`MigrateDatabaseAsync`).
+- Access token — подписанный JWT без шифрования (`DisableAccessTokenEncryption`), иначе Api его не прочитает. При выдаче и при обновлении по refresh-токену пользователь перечитывается из базы.
+- Api: `[Authorize]` на `BaseController` (открыт только health check), `CurrentUserId` из claim `sub`; `UserId` в запросах больше нет. `GET api/users/me` — текущий пользователь. Swagger: кнопка Authorize → вход через Auth (клиент `cooking-swagger`).
+- IdentityModel в Api закреплён на одной версии 8.x: JwtBearer 8.0 тянет 7.x, OpenIddict — 8.x, смесь падает в рантайме.
+- **Вход через бота** (по схеме Device Flow): `/login` → `CreateLoginRequestCommand` → ссылка `t.me/<bot>?start=login_<Code>` + секрет браузера (PollToken) в HttpOnly cookie, в базе только SHA-256. Бот на `/start login_<Code>` спрашивает «Войти?» (ссылку мог прислать чужой) → `ConfirmLoginRequestCommand` / `DeclineLoginRequestCommand`. Страница опрашивает `/login/bot/poll` (`CompleteLoginRequestCommand`, `IPolledRequest` — в лог на Debug) и после подтверждения открывает сессию Auth. Код из ссылки без PollToken войти не даёт; запрос живёт 5 минут, одноразовый.
+- Локально: сертификаты подписи — dev-сертификаты OpenIddict (хранилище пользователя Windows). Auth нужен токен того же dev-бота (для username в ссылке): `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Auth` (или `Telegram:BotUsername`). Api: `Auth:Authority = https://localhost:7271/`.
+- Этап 2 (не сделан): Telegram Login Widget на странице входа (`/setdomain` прод-бота на домен Auth), прод — `auth.cocking.fyi`, постоянные ключи подписи и Data Protection, контейнер в compose и workflow. Этап 3 — PWA (`oidc-client-ts`).
+
 ## Docker (локальная разработка)
 
 Postgres (`recipe-db`, порт 5432) и RabbitMQ (`recipe-mq`, AMQP 5672 / management UI 15672) — см. `docker-compose.yml` в корне.
@@ -423,7 +444,7 @@ Postgres (`recipe-db`, порт 5432) и RabbitMQ (`recipe-mq`, AMQP 5672 / mana
 }
 ```
 
-Сейчас эта конфигурация уже есть в `src/Cooking.Api/appsettings.Development.json`; в `Cooking.Worker/appsettings.Development.json` её пока нет.
+Эта конфигурация есть в `appsettings.Development.json` у Api и у Auth.
 
 ## Хостинг (прод)
 

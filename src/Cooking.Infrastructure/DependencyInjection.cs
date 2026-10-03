@@ -1,3 +1,4 @@
+using Cooking.Application.Auth;
 using Cooking.Application.Common.Interfaces;
 using Cooking.Application.Families;
 using Cooking.Application.Ingredients;
@@ -21,6 +22,7 @@ namespace Cooking.Infrastructure;
 
 public static class DependencyInjection
 {
+    /// <summary>База и репозитории — нужны и Api, и Auth.</summary>
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -37,7 +39,17 @@ public static class DependencyInjection
         services.AddScoped<ITagRepositoryService, TagRepositoryService>();
         services.AddScoped<IRecipeRepositoryService, RecipeRepositoryService>();
         services.AddScoped<IRecipeDraftRepositoryService, RecipeDraftRepositoryService>();
+        services.AddScoped<ILoginRequestRepositoryService, LoginRequestRepositoryService>();
 
+        return services;
+    }
+
+    /// <summary>
+    /// Разбор рецептов (LLM, Reels, фоновая очередь) — только в процессе Api: сервису Auth очередь
+    /// и фоновый обработчик не нужны.
+    /// </summary>
+    public static IServiceCollection AddRecipeParsing(this IServiceCollection services, IConfiguration configuration)
+    {
         // Разбор рецептов: LLM + очередь в памяти процесса с ограниченной параллельностью.
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SectionName));
         services.Configure<RecipeParsingOptions>(configuration.GetSection(RecipeParsingOptions.SectionName));

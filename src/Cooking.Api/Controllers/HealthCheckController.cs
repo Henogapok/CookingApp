@@ -1,8 +1,10 @@
 using Cooking.Application.HealthChecks.Queries.CheckDatabaseConnection;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cooking.Api.Controllers;
 
+[AllowAnonymous]
 public class HealthCheckController : BaseController
 {
     [HttpGet]

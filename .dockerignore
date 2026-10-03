@@ -8,7 +8,6 @@
 .claude/
 tests/
 deploy/
-src/Cooking.Worker/
 src/Screens/
 docker-compose.yml
 *.md
