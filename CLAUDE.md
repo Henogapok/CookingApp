@@ -409,6 +409,8 @@ Seed — через `HasData` в EF-конфигурациях, значения
 
 Отдельный сервис-сервер авторизации на **OpenIddict**; Api — resource server. Логика (запросы на вход, пользователи) — в Application, Auth — тонкий хост, как Api и бот.
 
+Структура Auth (и тот же принцип в Api): `Controllers/` — только HTTP (`AuthorizationController` — `/connect/*`, `LoginController` — `/login/*`), только контроллеры, без minimal API; `Services/` — логика хоста (`BotLoginService`, `UserResolver`, `TelegramBotInfo`); `Identity/` — какие claims куда попадают (`UserPrincipalFactory`) и константы; `Options/` — классы настроек; `Contracts/` — запросы/ответы; `Seeding/` — шаги запуска; `Extensions/` — регистрация сервисов и конвейера, чтобы `Program.cs` читался сверху вниз.
+
 ```
 клиент (PWA, Swagger) ──редирект──► Auth /connect/authorize ── нет сессии ──► /login (вход через бота; позже — виджет)
                       ◄── code ────  сессия Auth (cookie cooking.session) = SSO: другие клиенты входят без логина
@@ -416,7 +418,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
                       ── Bearer JWT ─► Api: подпись по ключам Auth (/.well-known/jwks), UserId = claim sub
 ```
 
-- Flow — Authorization Code + PKCE, клиенты публичные (без секрета). Клиенты и их redirect URI — в конфиге `Auth:Clients`, при старте `OpenIddictClientSeeder` создаёт/обновляет их в базе. Scope API — `cooking-api` (он же audience).
+- Flow — Authorization Code + PKCE, клиенты публичные (без секрета). Клиенты и их redirect URI — в конфиге `Auth:Clients`, при старте `OAuthClientSeeder` (явный шаг в `PrepareDatabaseAsync`, после миграций) создаёт/обновляет их в базе. Scope API — `cooking-api` (он же audience).
 - Таблицы OpenIddict — в `CookingDbContext` (`modelBuilder.UseOpenIddict()`), миграции общие. Миграции при старте применяют оба сервиса — под advisory lock Postgres (`MigrateDatabaseAsync`).
 - Access token — подписанный JWT без шифрования (`DisableAccessTokenEncryption`), иначе Api его не прочитает. При выдаче и при обновлении по refresh-токену пользователь перечитывается из базы.
 - Api: `[Authorize]` на `BaseController` (открыт только health check), `CurrentUserId` из claim `sub`; `UserId` в запросах больше нет. `GET api/users/me` — текущий пользователь. Swagger: кнопка Authorize → вход через Auth (клиент `cooking-swagger`).

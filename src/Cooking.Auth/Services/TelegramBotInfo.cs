@@ -1,10 +1,11 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using Cooking.Auth.Options;
 using Microsoft.Extensions.Options;
 
-namespace Cooking.Auth.Login;
+namespace Cooking.Auth.Services;
 
-/// <summary>Username бота для ссылки t.me/&lt;bot&gt;?start=… — из настроек или один раз через getMe.</summary>
+/// <summary>Username бота для ссылки t.me/&lt;bot&gt;?start=… — из настроек или один раз через getMe. Singleton: кэширует ответ.</summary>
 public class TelegramBotInfo(IHttpClientFactory httpClientFactory, IOptions<TelegramOptions> options, ILogger<TelegramBotInfo> logger)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
