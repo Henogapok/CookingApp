@@ -14,7 +14,8 @@ namespace Cooking.Auth.Controllers;
 /// Эндпоинты OAuth 2.0 / OpenID Connect. Протокол (проверка клиента, redirect_uri, PKCE, выпуск и подпись токенов)
 /// делает OpenIddict до того, как запрос дойдёт сюда; контроллер только отвечает, кто пользователь.
 /// </summary>
-public class AuthorizationController(UserResolver users) : Controller
+/// В лог — кто и какому клиенту получил code/токены; сами code, code_verifier и токены — никогда.
+public class AuthorizationController(UserResolver users, ILogger<AuthorizationController> logger) : Controller
 {
     /// <summary>
     /// Начало входа: клиент (PWA, Swagger) перенаправляет сюда браузер. Нет сессии — отправляем на страницу входа,
@@ -31,6 +32,7 @@ public class AuthorizationController(UserResolver users) : Controller
         // prompt=login — клиент просит войти заново, даже если сессия есть.
         if (request.HasPromptValue(PromptValues.Login))
         {
+            logger.LogInformation("Authorize: client {ClientId} asked to sign in again (prompt=login)", request.ClientId);
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return RedirectToLogin();
         }
@@ -39,7 +41,14 @@ public class AuthorizationController(UserResolver users) : Controller
         var user = await users.ResolveAsync(session.Principal, HttpContext.RequestAborted);
 
         if (user is not null)
+        {
+            logger.LogInformation("Authorize: code issued to client {ClientId} for user {UserId}, scopes {Scopes}",
+                request.ClientId, user.Id, request.GetScopes());
             return SignIn(UserPrincipalFactory.CreateForTokens(user, request.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        }
+
+        logger.LogInformation("Authorize: client {ClientId}, no session → {Outcome}",
+            request.ClientId, request.HasPromptValue(PromptValues.None) ? "login_required (prompt=none)" : "login page");
 
         // prompt=none — клиент проверяет сессию «тихо» и просит не показывать страницу входа.
         return request.HasPromptValue(PromptValues.None)
@@ -65,9 +74,16 @@ public class AuthorizationController(UserResolver users) : Controller
         var granted = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         var user = await users.ResolveAsync(granted.Principal, HttpContext.RequestAborted);
 
-        return user is null
-            ? Forbid(Errors.InvalidGrant, "The user no longer exists.")
-            : SignIn(UserPrincipalFactory.CreateForTokens(user, granted.Principal!.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        if (user is null)
+        {
+            logger.LogWarning("Token: {GrantType} from client {ClientId} rejected — the user no longer exists",
+                request.GrantType, request.ClientId);
+            return Forbid(Errors.InvalidGrant, "The user no longer exists.");
+        }
+
+        logger.LogInformation("Token: tokens issued to client {ClientId} for user {UserId} by {GrantType}",
+            request.ClientId, user.Id, request.GrantType);
+        return SignIn(UserPrincipalFactory.CreateForTokens(user, granted.Principal!.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     /// <summary>
@@ -78,6 +94,7 @@ public class AuthorizationController(UserResolver users) : Controller
     [IgnoreAntiforgeryToken]
     public async Task<IActionResult> Logout()
     {
+        logger.LogInformation("Logout: user {UserId} signed out", UserPrincipalFactory.GetUserId(User));
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
         // Без post_logout_redirect_uri (или с незарегистрированным) OpenIddict вернёт на страницу входа.

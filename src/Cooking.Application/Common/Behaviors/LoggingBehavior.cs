@@ -10,7 +10,7 @@ namespace Cooking.Application.Common.Behaviors;
 /// <summary>
 /// Одна строка в лог на каждый запрос: что, от кого, за сколько и чем закончилось. Бот и контроллеры ходят
 /// через MediatR, так что это журнал действий пользователей. Команды — Information; запросы (*Query) — Debug:
-/// бот читает пользователя на каждый апдейт, на Information они бы забили лог. Так же — <see cref="IPolledRequest"/>.
+/// бот читает пользователя на каждый апдейт, на Information они бы забили лог.
 /// Содержимое запроса не пишем — там тексты рецептов и правок.
 /// </summary>
 public class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TRequest, TResponse>> logger)
@@ -21,9 +21,7 @@ public class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TReque
     private static readonly string RequestName = typeof(TRequest).Name;
 
     private static readonly LogLevel Level =
-        RequestName.EndsWith("Query", StringComparison.Ordinal) || typeof(IPolledRequest).IsAssignableFrom(typeof(TRequest))
-        ? LogLevel.Debug
-        : LogLevel.Information;
+        RequestName.EndsWith("Query", StringComparison.Ordinal) ? LogLevel.Debug : LogLevel.Information;
 
     // Почти у всех команд есть UserId — кто действовал; ищем один раз на тип запроса.
     private static readonly PropertyInfo? UserIdProperty = typeof(TRequest).GetProperty("UserId");

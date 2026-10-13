@@ -1,4 +1,3 @@
-using Cooking.Application;
 using Cooking.Auth.Extensions;
 using Cooking.Auth.Options;
 using Cooking.Infrastructure;
@@ -10,9 +9,10 @@ var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<
 
 builder.Services.AddSerilog(config => config.ReadFrom.Configuration(builder.Configuration));
 
-// Та же база и те же пользователи, что у Api; разбор рецептов (AddRecipeParsing) здесь не нужен.
+// Та же база и те же пользователи, что у Api. MediatR (AddApplication) не подключаем: Auth нужны только
+// сервисы входа и пользователей — их и вызываем напрямую, а остальные хендлеры потянули бы чужие зависимости
+// (очередь разбора, LLM).
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddApplication();
 
 builder.Services.AddControllers();
 builder.Services.AddLogin(builder.Configuration);

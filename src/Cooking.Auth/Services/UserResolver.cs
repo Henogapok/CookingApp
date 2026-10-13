@@ -1,8 +1,6 @@
 using System.Security.Claims;
 using Cooking.Application.Users;
-using Cooking.Application.Users.Queries;
 using Cooking.Auth.Identity;
-using MediatR;
 
 namespace Cooking.Auth.Services;
 
@@ -10,7 +8,7 @@ namespace Cooking.Auth.Services;
 /// Пользователь из базы по сессии или по ранее выданному code/refresh-токену (claim sub). Перечитываем каждый раз:
 /// удалённому пользователю новые токены не выдаём, а смена имени попадает в следующий токен.
 /// </summary>
-public class UserResolver(ISender mediator)
+public class UserResolver(IUserRepositoryService users, ILogger<UserResolver> logger)
 {
     /// <summary>null — в principal нет пользователя (не вошёл) или его уже нет в базе.</summary>
     public async Task<UserDto?> ResolveAsync(ClaimsPrincipal? principal, CancellationToken cancellationToken)
@@ -18,7 +16,13 @@ public class UserResolver(ISender mediator)
         if (UserPrincipalFactory.GetUserId(principal) is not { } userId)
             return null;
 
-        var result = await mediator.Send(new GetUserByIdQuery(userId), cancellationToken);
-        return result.IsSuccess ? result.Value : null;
+        var result = await users.GetByIdAsync(userId, cancellationToken);
+        if (result.IsFailed)
+        {
+            logger.LogWarning("User {UserId} from session/token can't be loaded: {Errors}", userId, result.Errors);
+            return null;
+        }
+
+        return result.Value;
     }
 }
