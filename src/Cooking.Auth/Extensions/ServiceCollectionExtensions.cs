@@ -15,7 +15,7 @@ public static class ServiceCollectionExtensions
 {
     public const string ClientsCorsPolicy = "Clients";
 
-    /// <summary>Вход через бота, поиск пользователя для токенов, синхронизация клиентов.</summary>
+    /// <summary>Вход через бота и через виджет Telegram, поиск пользователя для токенов, синхронизация клиентов.</summary>
     public static IServiceCollection AddLogin(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient();
         services.AddSingleton<TelegramBotInfo>();
         services.AddScoped<BotLoginService>();
+        services.AddScoped<TelegramWidgetLoginService>();
         services.AddScoped<UserResolver>();
         services.AddScoped<OAuthClientSeeder>();
 

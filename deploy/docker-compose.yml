@@ -45,8 +45,10 @@ services:
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=recipe_db;Username=recipe_user;Password=${POSTGRES_PASSWORD:?}"
       # Миграции применяют оба сервиса — под advisory lock Postgres, так что одновременный старт безопасен.
       Database__MigrateOnStartup: "true"
-      # Тот же прод-бот: username для ссылки входа, позже — проверка подписи Telegram Login Widget.
+      # Тот же прод-бот: username для ссылки входа и ключ проверки подписи Telegram Login Widget.
       Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:?}
+      # Кнопка Telegram Login Widget: домен auth.<домен> привязан к прод-боту через /setdomain в BotFather.
+      Telegram__LoginWidgetEnabled: "true"
       # Адрес в поле iss токенов — публичный, а не http://auth:8080, который Auth видит изнутри docker-сети.
       Auth__Issuer: https://auth.${DOMAIN:?}/
       # Ключи подписи/шифрования токенов: создаются при первом старте и дальше живут на volume auth_keys.
