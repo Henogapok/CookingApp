@@ -23,7 +23,7 @@ builder.Services.AddJwtAuthentication(authOptions);
 builder.Services.AddSwaggerWithOAuth(authOptions);
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
-builder.Services.AddPwaCors();
+// CORS не нужен: PWA ходит в Api по относительному /api на свой же origin (dev — прокси Vite, прод — Caddy).
 
 var app = builder.Build();
 
@@ -37,7 +37,6 @@ app.UseSerilogRequestLogging();
 app.UseSwaggerWithOAuth(authOptions);
 
 app.UseHttpsRedirection();
-app.UseCors(ServiceCollectionExtensions.PwaCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();
 

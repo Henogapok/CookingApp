@@ -1,0 +1,45 @@
+/* flex-basis auto, а не 0 (flex: 1): в колонке (витрина) нулевая основа сжала бы поле по высоте. */
+.field {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--search-border);
+  border-radius: 14px;
+  background: var(--search-bg);
+  transition: height 0.25s ease, padding 0.25s ease, border-radius 0.25s ease;
+}
+
+.field:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.large {
+  height: 64px;
+  padding: 0 18px;
+  border-radius: 20px;
+}
+
+.icon {
+  flex: none;
+  color: var(--muted);
+}
+
+/* 16px и больше — иначе Safari на iPhone приближает страницу при фокусе. */
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px;
+}
+
+.large .input {
+  font-size: 17px;
+}

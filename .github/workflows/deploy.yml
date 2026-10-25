@@ -1,6 +1,6 @@
 name: Deploy
 
-# Каждый push в main: тесты → образы Api и Auth в GHCR → на сервере docker compose up. Инструкция — deploy/README.md.
+# Каждый push в main: тесты → образы Api, Auth и web (Caddy + PWA) в GHCR → на сервере docker compose up. Инструкция — deploy/README.md.
 on:
   push:
     branches: [ main ]
@@ -12,6 +12,7 @@ concurrency: deploy
 env:
   API_IMAGE: ghcr.io/henogapok/cooking-api
   AUTH_IMAGE: ghcr.io/henogapok/cooking-auth
+  WEB_IMAGE: ghcr.io/henogapok/cooking-web
 
 jobs:
   test:
@@ -55,6 +56,19 @@ jobs:
           tags: |
             ${{ env.AUTH_IMAGE }}:latest
             ${{ env.AUTH_IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      # Адрес Auth вшивается в JS PWA при сборке — из того же vars.DOMAIN, что и остальной прод.
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web
+          push: true
+          build-args: VITE_AUTH_AUTHORITY=https://auth.${{ vars.DOMAIN }}/
+          tags: |
+            ${{ env.WEB_IMAGE }}:latest
+            ${{ env.WEB_IMAGE }}:${{ github.sha }}
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
   deploy:

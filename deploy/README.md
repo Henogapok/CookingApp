@@ -7,13 +7,13 @@
 ```
 push в main ──► GitHub Actions: Deploy
                  1. тесты (тот же ci.yml)
-                 2. docker build → ghcr.io/henogapok/cooking-api и cooking-auth (:<sha> и :latest)
+                 2. docker build → ghcr.io/henogapok/cooking-api, cooking-auth и cooking-web (Caddy + PWA) (:<sha> и :latest)
                  3. по SSH: копирует docker-compose.yml, Caddyfile и .env в ~/cooking
                  4. docker compose pull && docker compose up -d
 ```
 
 На сервере пять контейнеров: **api** (Api + бот, webhook), **auth** (сервер авторизации, `https://auth.cocking.fyi`),
-**postgres**, **seq** (логи), **caddy** (HTTPS-сертификаты и проксирование).
+**postgres**, **seq** (логи), **caddy** (образ `cooking-web`: HTTPS-сертификаты, статика PWA на `https://cocking.fyi`, прокси `/api/*` на Api).
 Миграции EF применяются сами при старте Api и Auth (`Database__MigrateOnStartup=true`, под advisory lock — не мешают друг другу).
 
 Ключи подписи токенов Auth создаёт сам при первом старте и хранит на volume `auth_keys` (`/keys/*.pfx`), ключи cookie сессии
@@ -113,7 +113,12 @@ docker compose exec -T postgres pg_dump -U recipe_user recipe_db | gzip > ~/reci
 **Instagram просит вход** (в логах yt-dlp: login required / rate limit): положить cookies отдельного аккаунта на сервер
 и прописать `YtDlp__CookiesFile` — пока не настроено, добавим, когда понадобится.
 
-## Что пока закрыто
+## PWA
 
-Caddy пропускает к Api только `/api/telegram/webhook`, остальное снаружи отвечает 404 — откроем вместе с PWA.
-Auth открыт целиком, но клиентов OAuth в проде пока нет (Swagger — только локально), так что токены выдавать некому до PWA.
+`https://cocking.fyi` — PWA (статика из образа `cooking-web`, любой путь отдаёт `index.html`), `/api/*` — Api. Для браузера
+PWA и Api на одном origin, поэтому CORS в Api нет. Адрес Auth вшивается в сборку PWA (`VITE_AUTH_AUTHORITY` из `vars.DOMAIN`).
+OAuth-клиент `cooking-pwa` с redirect `https://<домен>/auth/callback` задан в `docker-compose.yml` (`Auth__Clients__0__*`).
+Кэш: `assets/*` (имена с хэшем) — на год, остальное (`index.html`, `sw.js`, манифест) — `no-cache`, чтобы новая версия
+доходила до установленных PWA: Service Worker скачивает её в фоне и включает при следующем запуске.
+
+Swagger в проде выключен, клиента для него нет.

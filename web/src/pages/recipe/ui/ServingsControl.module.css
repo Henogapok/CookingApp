@@ -1,0 +1,57 @@
+.control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.button {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.value {
+  min-width: 28px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}

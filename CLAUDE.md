@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. Ещё нет: PWA.
+Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»): вход через Auth, список рецептов (загружается целиком, поиск и группы на клиенте) и страница рецепта с пересчётом порций, 4 темы.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -42,6 +42,91 @@ Domain ← Application ← Infrastructure ← Api, Auth
 
 `AddInfrastructure` — база и репозитории (нужны Api и Auth), `AddRecipeParsing` — LLM, Reels и фоновая очередь (только Api).
 
+## Правила разработки
+
+Обязательны для всего нового кода. Если правило мешает — сначала обсуждаем и меняем его здесь, потом код.
+
+### Бэкенд: путь запроса
+
+```
+Controller (Api) / BotUpdateHandler (Bot)            — только перевод HTTP/Telegram ↔ команда
+  └─► MediatR: LoggingBehavior → ValidationBehavior   — журнал действия; FluentValidation до хендлера
+        └─► Handler (Application)                     — сценарий: вызывает интерфейсы, сам в базу не ходит
+              └─► I<Feature>RepositoryService (Application, интерфейс)
+                    └─► <Feature>RepositoryService (Infrastructure) — EF Core через IDataContext, проверки доступа
+```
+
+- **Контроллеры и бот тонкие**: прочитать запрос → собрать команду (`UserId = CurrentUserId` из токена, никогда из тела запроса) → `Mediator.Send` → `HandleResult`. Логики, EF и `try/catch` в них нет.
+- **Хендлеры** не знают про EF и HTTP. CRUD-хендлер — одна строка (делегирует репозиторию); сценарий из нескольких шагов (как `ParseRecipeDraftCommandHandler`) — оркестрирует интерфейсы. `IDataContext` в Application не используется (исключение — health check).
+- **Репозиторий-сервис** (`I<Feature>RepositoryService` в Application, реализация в `Infrastructure/Repositories`) — вся работа с базой фичи и проверки, которым нужна база: существование связанных записей, права доступа (рецепт видят автор и семья), конфликты.
+- **Внешние сервисы** (LLM, Whisper, yt-dlp, позже FatSecret) — интерфейс в Application (`IRecipeTextParser`, `ISpeechToText`…), реализация в Infrastructure. Без ключа — не падаем при старте, а отвечаем `ErrorCode.Unavailable`.
+- **Результат клиенту из фоновой работы** — через интерфейс в Application (`IRecipeDraftNotifier`), а не прямым вызовом бота: PWA и бот — равноправные клиенты одних и тех же команд.
+
+### Файлы и имена (Application)
+
+- Папка на фичу: `Application/<Фича>/` → `Commands/`, `Queries/`, `I<Фича>RepositoryService.cs`, DTO, общие `*Fields` + `*FieldsValidator` (поля для create/update).
+- На каждую команду три файла: `XxxCommand.cs` (record, `IRequest<Result<T>>`), `XxxCommandHandler.cs`, `XxxCommandValidator.cs`; запросы — так же с `Query`. Один тип — один файл.
+- Имя запроса на чтение обязательно оканчивается на `Query` (LoggingBehavior пишет их на Debug), остальное — `Command`. Действие пользователя — свойство `UserId` (по нему LoggingBehavior пишет, кто действовал).
+- Ответы — `*Dto` (records); тела HTTP-запросов — `Api/Contracts/*Request` с методом `ToFields()`/`ToCommand()`; списки, не пришедшие в JSON, считаем пустыми.
+- Справочники — по константам `ReferenceIds`, а не по имени.
+
+### Ошибки
+
+- Ожидаемые неудачи — не исключения, а `Result.Fail(new AppError(message, ErrorCode))` (FluentResults). Код → HTTP-статус переводит `BaseController.HandleFailure`: `Validation` 400, `Forbidden` 403, `NotFound` 404, `LogicConflict` 409, `ExternalService` 502, `Unavailable` 503.
+- Чужой ресурс — `NotFound`, а не `Forbidden`: не раскрываем, что он существует.
+- Исключения — только для неожиданного; их ловит `GlobalExceptionHandler` (500; нарушение unique/FK в Postgres → 409).
+- Текст `AppError` и логов — по-английски; текст, который видит пользователь (бот, страница входа, заголовки ProblemDetails), — по-русски.
+
+### Логирование (Serilog → Seq)
+
+- **Где пишем:**
+  - `LoggingBehavior` — одна строка на каждую команду/запрос (кто, что, сколько мс, итог). Поэтому в хендлерах, репозиториях и контроллерах логов **нет**.
+  - Интеграции с внешним миром (LLM, Whisper, yt-dlp, Telegram API): Information — краткий итог успеха (размер, время), Warning — отказ сервиса, Error — исключение.
+  - Фоновые службы (`RecipeParsingBackgroundService`, polling бота): Warning — задача не выполнена, Error — исключение (служба при этом продолжает работать).
+  - Auth — явные логи входа и выдачи токенов (там нет MediatR, LoggingBehavior не работает).
+  - `GlobalExceptionHandler` — Error на каждое необработанное исключение.
+- **Уровни:** Debug — частое и шумное (опрос входа, запросы на чтение); Information — действия пользователей и итоги интеграций; Warning — ожидаемые сбои; Error — исключения.
+- **Никогда не пишем:** токены и ключи (бота, API, JWT, refresh), PollToken, код входа, данные Telegram Login Widget, тексты рецептов и правок, тела запросов. Можно: Id пользователя/черновика, имя, длины, статусы, время.
+- Только шаблоны с плейсхолдерами (`"Draft {DraftId} parsed"`), без интерполяции `$"..."` — иначе Seq не сможет фильтровать по полям.
+
+### Хосты (Api, Auth)
+
+- Только контроллеры, без minimal API (исключение — webhook бота в `Cooking.Bot`). Логика хоста — в `Services/`, настройки — `Options/` (класс на файл), запросы/ответы — `Contracts/`, шаги запуска — `Seeding/` (явный вызов, не скрытый hosted service).
+- `Program.cs` читается сверху вниз: регистрации — `Extensions/ServiceCollectionExtensions.cs` (`AddXxx`), конвейер и шаги старта — `Extensions/WebApplicationExtensions.cs`.
+
+### Конфигурация и секреты
+
+- Настройки — секциями в `appsettings.json` + класс в `Options/`. Секреты — только `dotnet user-secrets` локально и переменные окружения (из GitHub Secrets) в проде; в git — никогда.
+
+### База
+
+- Code First: конфигурация сущности — `Infrastructure/Persistence/Configurations/<область>/<Сущность>Configuration.cs`; все сущности — от `BaseEntity` (кроме справочников).
+- Миграция: `dotnet ef migrations add <Имя> --project src/Cooking.Infrastructure --startup-project src/Cooking.Api`; Id существующих seed-записей не меняем.
+
+### Тесты
+
+- xUnit. `Application.Tests` — репозитории-сервисы на EF InMemory и валидаторы; чистые функции (маппер, калькулятор КБЖУ, форматирование бота, подпись виджета) — обязательно с тестами.
+- Имя теста — `Сценарий_Результат` (`DuplicateTags_FailValidation`, `Verify_OutdatedAuthDate_Fails`).
+
+### Код
+
+- Комментарии и XML-doc — по-русски, объясняют «почему», а не «что». Публичные интерфейсы и неочевидные решения — с `<summary>`.
+- Новый код повторяет стиль соседнего: primary constructors, records для команд/DTO, `CancellationToken` — последним параметром во всех async-методах.
+
+### Фронтенд (web/)
+
+- Архитектура — Feature-Sliced Design, правила — в разделе «PWA (web/)»; проверка — `npm run build`, `npm run lint`, `npm run lint:fsd`, `npm test` (их же запускает CI, job `web` в `ci.yml`).
+- Чистые функции (`lib/`) — с тестами рядом: `имя.test.ts`, Vitest (`describe`/`it` из `vitest`, названия — по-русски: сценарий → результат).
+- Только функциональные компоненты; именованные экспорты (`export function RecipeCard`); props — интерфейс `<Компонент>Props`; без `any`.
+- Данные, которые вычисляются из state, не храним вторым `useState`.
+
+### Git и процесс
+
+- Ветка фичи — от `main` (`feature/<имя>`) → merge в `dev` → проверка → merge в `main` (push в `main` = деплой). Ветки после мержа не удаляем.
+- Сообщения коммитов — по-английски, без строк Co-Authored-By. Push — только с явного согласия.
+- Проверка изменений — `dotnet build` / `dotnet test` (и проверки `web/`); приложение запускает и руками проверяет автор.
+- Перед мержем в `main` (= деплой) — ревью изменений ветки: `/code-review` (high) по diff с `main`; если затронуты вход, токены, CORS, секреты — ещё `/security-review`. Подтверждённые находки исправляются отдельным коммитом до мержа; спорные — обсуждаем. Ревью запускает автор (не Claude в той же сессии, где писался код).
+
 ## Стек
 
 - .NET 8, C#
@@ -52,7 +137,7 @@ Domain ← Application ← Infrastructure ← Api, Auth
 - Whisper API (OpenAI) — Speech-to-Text
 - Claude API / OpenAI API — структурирование рецептов через LLM
 - SignalR — реалтайм (будущее: список покупок)
-- PWA (фронтенд, будет позже)
+- PWA — React + TypeScript + Vite (`web/`, см. «PWA»)
 
 ## Команды
 
@@ -114,6 +199,7 @@ Domain ← Application ← Infrastructure ← Api, Auth
 - Сканирование чека → цены (KZT) в каталог ингредиентов (см. идею в конце файла)
 - Текст на экране в Reels (рецепт только в титрах): кадры из видео → Claude vision
 - Inline-режим: `@бот запрос` в любом чате (нужен `IsPersonal = true`)
+- Фото рецептов. В DTO — только ссылка (`photoUrl`), файлы через JSON не ходят; картинки кэширует браузер (HTTP-кэш, позже Service Worker), не `localStorage`. Хранилище — за интерфейсом в Application (`IPhotoStorage`): сначала диск VPS на volume, отдаёт Caddy (`/media/…`), при необходимости — S3-совместимое (Vultr Object Storage) без изменения команд. Имена файлов — `{guid}.webp` (неугадываемые: `<img>` не шлёт Bearer, поэтому файлы публичные, а ссылку выдаёт только Api с проверкой прав) + `Cache-Control: immutable`, новое фото = новое имя. При загрузке — две версии: миниатюра ~400 px для списка/полок и крупная для страницы рецепта (ImageSharp/SkiaSharp). Обложку Reels (yt-dlp) скачиваем к себе — ссылки CDN Instagram протухают. В базе сначала `Recipe.PhotoPath` (string?), таблица `RecipePhoto` — если понадобится несколько фото или фото шагов
 - Возможная фича (в реальности пока не встречалась): ссылка на сайт внутри присланного текста → сохранять как источник рецепта (SourceType Website)
 
 ## Схема базы данных (Code First, EF Core + PostgreSQL)
@@ -427,7 +513,40 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Локально: сертификаты подписи — dev-сертификаты OpenIddict (хранилище пользователя Windows). Auth нужен токен того же dev-бота (для username в ссылке): `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Auth` (или `Telegram:BotUsername`). Api: `Auth:Authority = https://localhost:7271/`.
 - Прод: ключи подписи/шифрования — `.pfx` из `Auth:Certificates` (нет файла — Auth создаёт самоподписанный при старте; в проде на volume `auth_keys`), не заданы вне Development — Auth не стартует. Ключи Data Protection (cookie сессии) — в Postgres (`DataProtectionKeys`). За Caddy — `UseForwardedHeaders` (X-Forwarded-Proto), `Auth:Issuer = https://auth.cocking.fyi/`.
 - **Вход через Telegram Login Widget**: кнопка на `/login` (скрипт `telegram-widget.js`, username бота — из `GET /login/options`) → Telegram сам подтверждает пользователя и отдаёт странице подписанные данные → `POST /login/telegram` → `TelegramWidgetLoginService`: подпись проверяет `TelegramWidgetSignature` (HMAC-SHA256, ключ = SHA256(токен бота), `auth_date` не старше суток; покрыт тестами), пользователь регистрируется так же идемпотентно, как на `/start` (`RegisterAsync`) → сессия Auth. Виджет работает только на домене, привязанном к боту (`/setdomain` у прод-бота → `auth.cocking.fyi`), на localhost — нет, поэтому включается настройкой `Telegram:LoginWidgetEnabled` (только в проде); локально — вход через бота.
-- Этап 3 — PWA (`oidc-client-ts`).
+- **PWA** — клиент `cooking-pwa` (redirect `/auth/callback`, после выхода — `/`), библиотеки `oidc-client-ts` + `react-oidc-context` (`web/src/app/auth/`). Scope `openid profile offline_access cooking-api`; пользователь и токены — в `localStorage` (PWA на iPhone при каждом запуске — новая «вкладка»), access token обновляется по refresh-токену заранее (`automaticSilentRenew`); не обновился — пользователь забывается и видит экран входа. Адрес Auth — `VITE_AUTH_AUTHORITY` в `web/.env.*`. CORS Auth пускает origin'ы redirect URI клиентов: GET (discovery, jwks) и POST (`/connect/token`). Прод-клиент — в `deploy/docker-compose.yml`.
+
+## PWA (web/)
+
+React 19 + TypeScript + Vite, папка `web/` в корне (не в `src/` — там только .NET). Команды из `web/`: `npm install`, `npm run dev` (http://localhost:5173, hot reload), `npm run build` (проверка типов + сборка в `dist/`), `npm run lint` (Oxlint), `npm run lint:fsd` (Steiger — правила FSD), `npm test` (Vitest).
+
+Структура — **Feature-Sliced Design**: функционала будет много (свайпы еды, предложения блюд, корзина, FatSecret), и одни и те же сущности (рецепт, ингредиент) нужны многим экранам.
+
+```
+web/src/
+├── main.tsx      точка входа
+├── app/          запуск: App (не вошёл → pages/sign-in), auth/ (вход через Cooking.Auth), query/ (кэш TanStack Query), router/ (React Router), styles/global.css
+├── pages/        экраны под маршруты; собирают блоки нижних слоёв (recipe-list, recipe, sign-in)
+├── widgets/      крупные блоки для нескольких экранов: app-header (шапка компьютерной версии, меню профиля с выбором темы)
+├── features/     (когда понадобится) действия пользователя: свайп, в корзину, пересчёт порций, вход
+├── entities/     бизнес-сущности: тип, запросы к Api, отображение (сейчас recipe)
+└── shared/       без бизнес-логики: api/ (http-клиент), config/ (адреса экранов), lib/ (тема, хуки: useMediaQuery, useCollapseOnScroll, useWakeLock), ui/ (Skeleton)
+```
+
+- Слайс (`entities/recipe`, `pages/recipe-list`) делится на сегменты `ui/`, `model/` (типы, состояние), `api/`, `lib/` (чистые функции + тесты рядом).
+- Импорт только вниз: `app → pages → widgets → features → entities → shared`; слайсы одного слоя друг друга не импортируют; снаружи — только через `index.ts` слайса, по алиасу `@/` (`@/entities/recipe`).
+- Код выносим в отдельный слайс, когда у него появился второй потребитель; до этого он живёт внутри страницы (Steiger `fsd/insignificant-slice`; для `entities` — только предупреждение, они заведомо общие).
+- Слои и сегменты заводим, когда появился код, пустые папки «на будущее» не создаём.
+- Стили — CSS Modules (`Компонент.module.css` рядом с компонентом); глобально — только переменные цветов и базовые правила (`app/styles/global.css`).
+- Экран «Рецепты» (`pages/recipe-list`): данные и фильтры — в `RecipeListPage`, раскладки — `MobileRecipeList` (телефон: цветная шапка, при прокрутке прячется заголовок — поиск, профиль и чипы-фильтры остаются) и `DesktopShowcase` (от 900px, «витрина»: полки по группам, «Все →» и поиск — сетка). Группы — по тегам MealType: Завтрак, Обед, Ужин, Перекус и «Другое» (без этих тегов, в том числе «Десерт»); рецепт с несколькими тегами — в нескольких группах. Группируем по Id тегов из seed (`entities/recipe/lib/mealGroups.ts`), не по именам. Отступы под вырез iPhone — `env(safe-area-inset-*)` (`viewport-fit=cover`); шрифт Manrope — пакетом `@fontsource-variable/manrope` (работает офлайн).
+- Маршруты — React Router 7 (data router, `app/router/AppRouter.tsx`): `/` — список, `/recipes/:id` — рецепт; адреса — только через `routes` из `@/shared/config`. Роутер создаётся после входа: `AuthProvider` к этому моменту убрал `?code=…` и вернул страницу, с которой уходили на вход (`signinRedirect({ state })`). `ScrollRestoration`: новый экран — сверху, «назад» — прежняя прокрутка. Фильтры списка — в адресе (`?q=`, `?group=`), а не в state. В проде Caddy должен отдавать `index.html` на любой путь PWA (SPA fallback), иначе обновление `/recipes/…` даст 404.
+- Загрузка — скелетоны той же формы, что содержимое (`Skeleton` из `@/shared/ui`), а не текст «Загружаем…». Рецепт открывается мгновенно: при наведении/касании карточки он предзагружается (`usePrefetchRecipe`), а пока грузится — шапка рецепта рисуется из кэша списка. Пока открыт рецепт, экран не гаснет (`useWakeLock`).
+- Страница рецепта (`pages/recipe`): порции пересчитываются на клиенте (количества и стоимость × выбранные / базовые порции; КБЖУ на порцию не меняется); без `Servings` пересчёта нет и КБЖУ — на всё блюдо.
+- PWA устанавливается на домашний экран: `vite-plugin-pwa` (манифест + Service Worker, `registerType: 'autoUpdate'` — новая версия включается при следующем запуске; `/api` Service Worker не кэширует). Иконки — из `public/icon.svg` командой `npm run icons` (настройки — `pwa-assets.config.ts`), PNG коммитим.
+- Темы: 4 штуки — светлые «Шалфей» (`sage`, по умолчанию, цветная шапка) и «Сливки» (`cream`), тёмные «Полночь» (`midnight`, по умолчанию) и «Графит» (`graphite`); макеты — артефакт «Макеты Cooking». Тема — набор CSS-переменных в `[data-theme="…"]`, переключается атрибутом на `<html>`. Компоненты используют только токены (`var(--bg)`, `var(--accent)`…), конкретных цветов в модулях нет — иначе одна из тем сломается. Новая тема — только по запросу. Выбор «Авто» (по умолчанию) — светлая/тёмная по `prefers-color-scheme`.
+- Выбор темы хранится в двух местах: `localStorage` (применяется до первой отрисовки, без мигания) и в профиле на сервере (`User.Theme`, null = «Авто»), чтобы тема совпадала на телефоне и компьютере; при входе серверное значение перезаписывает локальное. Сейчас сделана локальная часть: `shared/lib/theme.ts` (выбор, «Авто», `useThemeChoice`) + скрипт в `web/index.html`, который ставит тему до загрузки приложения (ключ `cooking.theme` и правила в двух местах — менять вместе); выбор — в меню профиля (`ThemePicker`). `User.Theme` на сервере — следующим шагом.
+- Типы ответов Api повторяют C#-DTO в camelCase (`Guid` → `string`, `int?` → `number | null`).
+- Запросы к Api — только через `apiRequest` из `@/shared/api` (сам ставит Bearer-токен, 401 → выход, ошибки → `ApiError` с ProblemDetails; текст для пользователя — `getErrorMessage`), сами функции запросов — в сегменте `api/` сущности (`entities/recipe/api`) вместе с ключами кэша и `queryOptions`. Данные с сервера в компонентах — только через TanStack Query (`useQuery`/`useMutation`), без своих `useState` для данных, загрузки и ошибки; после изменения — `invalidateQueries` по ключу сущности. Адреса относительные (`/api/…`): в разработке их пересылает прокси Vite (`vite.config.ts` → https://localhost:7211), в проде — Caddy, поэтому PWA и Api для браузера на одном origin.
+- Рецепты пользователя и его семьи (сотни, не тысячи) PWA загружает одним запросом `GET api/recipes` (`RecipeSummaryDto` — всё для карточки и полок: теги, КБЖУ на порцию, дата) и ищет/группирует по ним на клиенте (`pages/recipe-list/lib/searchRecipes`), без запроса на каждый символ. Свежесть — штатно через TanStack Query: при открытии экрана, возврате в приложение и восстановлении сети, если данные старше `staleTime`; после своих изменений — `invalidateQueries`. Параметр `search` у Api остаётся для бота. Серверный поиск с постраничной загрузкой — когда появятся тысячи записей (общий каталог).
 
 ## Docker (локальная разработка)
 
@@ -454,8 +573,8 @@ Postgres (`recipe-db`, порт 5432) и RabbitMQ (`recipe-mq`, AMQP 5672 / mana
 
 - VPS: Vultr High Performance (1 vCPU, 2 ГБ RAM, 50 ГБ NVMe, Frankfurt, Ubuntu 26.04), `linuxuser@80.240.24.108`, домен `cocking.fyi` + `auth.cocking.fyi` (регистратор и DNS — Porkbun)
 - Всё в Docker: `deploy/docker-compose.yml` — Api (с ботом, webhook) + Auth + Postgres + Seq + Caddy (HTTPS). RabbitMQ в проде нет
-- Деплой: push в main → `.github/workflows/deploy.yml` (тесты → образы `cooking-api` и `cooking-auth` из одного `Dockerfile` (`--target api|auth`) в GHCR → по SSH `docker compose up -d`). Секреты — GitHub Secrets, workflow пишет из них `~/cooking/.env`. Миграции применяются при старте Api (`Database:MigrateOnStartup`). Пошагово — `deploy/README.md`
-- Наружу через Caddy: у Api только webhook Telegram (REST откроем вместе с PWA), Auth — целиком на `auth.cocking.fyi`
+- Деплой: push в main → `.github/workflows/deploy.yml` (тесты → образы `cooking-api`, `cooking-auth` и `cooking-web` из одного `Dockerfile` (`--target api|auth|web`) в GHCR → по SSH `docker compose up -d`). Секреты — GitHub Secrets, workflow пишет из них `~/cooking/.env`. Миграции применяются при старте Api (`Database:MigrateOnStartup`). Пошагово — `deploy/README.md`
+- Наружу через Caddy: `cocking.fyi` — PWA (статика из образа `cooking-web` = Caddy + сборка `web/`, SPA fallback) и `/api/*` — Api (тот же origin, CORS в Api нет); Auth — целиком на `auth.cocking.fyi`. OAuth-клиент `cooking-pwa` в проде задаётся в `deploy/docker-compose.yml` (`Auth__Clients__0__*`), адрес Auth вшивается в сборку PWA build-arg'ом `VITE_AUTH_AUTHORITY`
 - Whisper API + LLM API: ~$2-4/мес при 20-30 рецептах
 
 

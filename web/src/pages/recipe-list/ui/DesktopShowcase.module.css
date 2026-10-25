@@ -1,0 +1,90 @@
+/*
+ * Шапка — общий DesktopHeader (widgets/app-header). Свёрнутая она на 174px ниже (254 → 80),
+ * поэтому отступ над полками растёт ровно на столько же: высота страницы не меняется.
+ */
+.page {
+  --ease: 0.25s ease;
+  --collapse: 174px;
+}
+
+.content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.collapsed .content {
+  padding-top: calc(28px + var(--collapse));
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding-top: 28px;
+  padding-bottom: 48px;
+  transition: padding-top var(--ease);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.heading {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--text);
+}
+
+/* Полка — лента карточек с горизонтальной прокруткой. */
+.shelf {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 6px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 250px;
+  gap: 18px;
+  overflow-x: auto;
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 24px 18px;
+}
+
+.status {
+  margin: 32px 0 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}

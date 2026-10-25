@@ -1,0 +1,84 @@
+/*
+ * Полоса во всю ширину, прилипает к верху; содержимое — колонкой не шире 1200px по центру.
+ * Развёрнуто: строка логотипа 80 + заголовок 64 + зазор 18 + поиск 64 + низ 28 = 254.
+ * Свёрнуто:  80 + 0 − 64 (поиск поднимается в строку логотипа) + поиск 48 + низ 16 = 80.
+ * Без поиска (bare) свёрнутая шапка — просто строка логотипа, тоже 80.
+ */
+.band {
+  --ease: 0.25s ease;
+
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: 28px;
+  border-radius: 0 0 36px 36px;
+  background: var(--top-bg);
+  color: var(--top-text);
+  transition: padding var(--ease), border-radius var(--ease), box-shadow var(--ease);
+}
+
+.inner {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 80px 40px 0;
+}
+
+.logo {
+  position: absolute;
+  top: 0;
+  left: 40px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  color: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.avatar {
+  position: absolute;
+  top: 18px;
+  right: 40px;
+}
+
+.title {
+  height: 64px;
+  margin: 0;
+  overflow: hidden;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 64px;
+  transition: height var(--ease), opacity var(--ease);
+}
+
+/* Свёрнуто: слева место под логотип, справа — под профиль (44 + 20px). */
+.search {
+  display: flex;
+  margin-top: 18px;
+  transition: margin var(--ease), padding var(--ease);
+}
+
+.collapsed {
+  padding-bottom: 16px;
+  border-radius: 0;
+  box-shadow: var(--top-shadow);
+}
+
+.collapsed .title {
+  height: 0;
+  opacity: 0;
+}
+
+.collapsed .search {
+  margin-top: -64px;
+  padding-left: 140px;
+  padding-right: 64px;
+}
+
+.bare.collapsed {
+  padding-bottom: 0;
+}

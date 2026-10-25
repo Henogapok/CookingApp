@@ -38,7 +38,11 @@ public record RecipeIngredientDto(
 
 public record RecipeStepDto(int StepNumber, string Instruction, int? TimerSeconds);
 
-/// <summary>Краткая карточка для списков и поиска.</summary>
+/// <summary>
+/// Краткая карточка для списков и поиска. PWA загружает список целиком и сама ищет и группирует
+/// (по тегам, дате), поэтому здесь всё, что нужно карточке и полкам, без ингредиентов и шагов.
+/// </summary>
+/// <param name="NutritionPerServing">null, если число порций неизвестно.</param>
 public record RecipeSummaryDto(
     Guid Id,
     string Title,
@@ -46,4 +50,7 @@ public record RecipeSummaryDto(
     int? Servings,
     int? CookingTimeMinutes,
     Guid CreatedByUserId,
-    string CreatedByFirstName);
+    string CreatedByFirstName,
+    DateTime CreatedAt,
+    List<TagDto> Tags,
+    NutritionFacts? NutritionPerServing);

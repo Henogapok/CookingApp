@@ -228,20 +228,75 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
             query = query.Where(r => r.Title.ToLower().Contains(term));
         }
 
-        var recipes = await query
+        var rows = await query
             .OrderBy(r => r.Title)
-            .Select(r => new RecipeSummaryDto(
+            .Select(r => new RecipeSummaryRow(
                 r.Id,
                 r.Title,
                 r.Complexity.Name,
                 r.Servings,
                 r.CookingTimeMinutes,
                 r.CreatedByUserId,
-                r.CreatedByUser.FirstName))
+                r.CreatedByUser.FirstName,
+                r.CreatedAt,
+                r.Ingredients
+                    .Select(i => new NutritionRow(
+                        i.IngredientCatalog.Name,
+                        i.Amount,
+                        i.UnitId,
+                        i.IngredientCatalog.BaseUnitId,
+                        i.IngredientCatalog.PieceWeight,
+                        i.IngredientCatalog.CaloriesPer100g,
+                        i.IngredientCatalog.ProteinPer100g,
+                        i.IngredientCatalog.FatPer100g,
+                        i.IngredientCatalog.CarbsPer100g,
+                        i.IngredientCatalog.PricePer100g))
+                    .ToList(),
+                r.RecipeTags
+                    .OrderBy(rt => rt.Tag.Name)
+                    .Select(rt => new TagDto(rt.TagId, rt.Tag.Name, rt.Tag.TagTypeId, rt.Tag.TagType.Name))
+                    .ToList()))
             .ToListAsync(cancellationToken);
+
+        var recipes = rows
+            .Select(r => new RecipeSummaryDto(
+                r.Id, r.Title, r.ComplexityName, r.Servings, r.CookingTimeMinutes,
+                r.CreatedByUserId, r.CreatedByFirstName, r.CreatedAt, r.Tags,
+                NutritionCalculator.ForRecipe(r.Ingredients.Select(i => i.ToAmount()).ToList(), r.Servings).PerServing))
+            .ToList();
 
         return Result.Ok(recipes);
     }
+
+    // Для списка из каталога нужно только то, что идёт в расчёт КБЖУ, — без названий единиц и признаков LLM.
+    private sealed record NutritionRow(
+        string Name,
+        decimal? Amount,
+        Guid? UnitId,
+        Guid BaseUnitId,
+        decimal? PieceWeight,
+        decimal Calories,
+        decimal Protein,
+        decimal Fat,
+        decimal Carbs,
+        decimal Price)
+    {
+        public IngredientAmount ToAmount() => new(
+            Name, Amount, UnitId,
+            new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), Price));
+    }
+
+    private sealed record RecipeSummaryRow(
+        Guid Id,
+        string Title,
+        string ComplexityName,
+        int? Servings,
+        int? CookingTimeMinutes,
+        Guid CreatedByUserId,
+        string CreatedByFirstName,
+        DateTime CreatedAt,
+        List<NutritionRow> Ingredients,
+        List<TagDto> Tags);
 
     /// <summary>Рецепт виден автору и участникам его текущей семьи.</summary>
     private static Expression<Func<Recipe, bool>> VisibleTo(User user)

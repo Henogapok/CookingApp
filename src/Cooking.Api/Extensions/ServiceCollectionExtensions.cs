@@ -6,8 +6,6 @@ namespace Cooking.Api.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public const string PwaCorsPolicy = "Pwa";
-
     /// <summary>
     /// Токены выдаёт Cooking.Auth (OpenID Connect). Api только проверяет JWT: подпись — по ключам из
     /// {Authority}/.well-known/jwks (скачиваются и кэшируются сами), aud = cooking-api, срок действия.
@@ -62,17 +60,6 @@ public static class ServiceCollectionExtensions
                 [new OpenApiSecuritySchemeReference("oauth2", document)] = ["openid", "profile", options.Audience],
             });
         });
-
-        return services;
-    }
-
-    public static IServiceCollection AddPwaCors(this IServiceCollection services)
-    {
-        services.AddCors(cors => cors.AddPolicy(PwaCorsPolicy, policy => policy
-            // TODO: заменить на реальный origin PWA, когда она появится.
-            .WithOrigins("http://localhost:5173")
-            .AllowAnyHeader()
-            .AllowAnyMethod()));
 
         return services;
     }

@@ -1,8 +1,12 @@
 # syntax=docker/dockerfile:1
+# check=skip=SecretsUsedInArgOrEnv
+# (проверку «секрет в ARG» выключаем: она срабатывает на слово AUTH в VITE_AUTH_AUTHORITY, а это публичный адрес Auth.)
 
-# Два образа из одного файла: Api (вместе с ботом) и Auth (сервер авторизации). Выбираются через --target:
+# Три образа из одного файла: Api (вместе с ботом), Auth (сервер авторизации) и web (Caddy со сборкой PWA).
+# Выбираются через --target:
 #   docker build --target api .   (он же по умолчанию — последний stage)
 #   docker build --target auth .
+#   docker build --target web --build-arg VITE_AUTH_AUTHORITY=https://auth.<домен>/ .
 # Собираются GitHub Actions из main и публикуются в GHCR — см. deploy/README.md.
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -21,6 +25,20 @@ RUN dotnet restore src/Cooking.Api/Cooking.Api.csproj \
 COPY src/ src/
 RUN dotnet publish src/Cooking.Api/Cooking.Api.csproj -c Release -o /app/api --no-restore \
     && dotnet publish src/Cooking.Auth/Cooking.Auth.csproj -c Release -o /app/auth --no-restore
+
+# PWA: сборка статики в Node, раздаёт её Caddy — тот же контейнер, что принимает HTTPS и проксирует /api и Auth.
+# Адрес Auth вшивается в JS при сборке (Vite заменяет import.meta.env.VITE_*), поэтому он build-arg, а не переменная окружения.
+# slim (glibc), а не alpine: нативные пакеты сборки (rolldown, lightningcss) в package-lock — под glibc.
+FROM node:24-slim AS web-build
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+ARG VITE_AUTH_AUTHORITY
+RUN test -n "$VITE_AUTH_AUTHORITY" && npm run build
+
+FROM caddy:2 AS web
+COPY --from=web-build /web/dist /srv
 
 # Общее для обоих: непривилегированный пользователь из базового образа; Kestrel слушает http на 8080 (HTTPS — у Caddy).
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
