@@ -23,6 +23,12 @@
   gap: 20px;
 }
 
+.skeletonHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .status {
   padding: 96px 20px 0;
   text-align: center;

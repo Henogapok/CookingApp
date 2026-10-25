@@ -5,8 +5,8 @@ import { isInMealGroup, mealGroups, recipeListQuery, type MealGroupId } from '@/
 import { getErrorMessage } from '@/shared/api';
 import { useMediaQuery } from '@/shared/lib';
 import { searchRecipes } from '../lib/searchRecipes';
-import { DesktopShowcase } from './DesktopShowcase';
-import { MobileRecipeList } from './MobileRecipeList';
+import { DesktopShowcase, DesktopShowcaseSkeleton } from './DesktopShowcase';
+import { MobileRecipeList, MobileRecipeListSkeleton } from './MobileRecipeList';
 import styles from './RecipeListPage.module.css';
 
 interface RecipeListPageProps {
@@ -63,7 +63,7 @@ export function RecipeListPage({ userName, onSignOut }: RecipeListPageProps) {
 
   let status = null;
   if (isPending) {
-    status = <p className={styles.status}>Загружаем рецепты…</p>;
+    status = isDesktop ? <DesktopShowcaseSkeleton /> : <MobileRecipeListSkeleton />;
   } else if (isError) {
     status = (
       <div className={styles.status} role="alert">

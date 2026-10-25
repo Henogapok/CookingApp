@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { routes } from '@/shared/config';
 import type { RecipeSummary } from '../model/types';
+import { usePrefetchRecipe } from '../api/usePrefetchRecipe';
 import { formatRecipeMeta } from '../lib/format';
 import { RecipeMacros } from './RecipeMacros';
 import { RecipeThumb } from './RecipeThumb';
@@ -13,9 +14,11 @@ interface RecipeCardProps {
 
 /** Строка списка рецептов (телефон): фото слева, название, «сложность · время · порции», КБЖУ на порцию. */
 export function RecipeCard({ recipe }: RecipeCardProps) {
+  const prefetch = usePrefetchRecipe(recipe.id);
+
   return (
     <li>
-      <Link to={routes.recipe(recipe.id)} className={styles.card}>
+      <Link to={routes.recipe(recipe.id)} className={styles.card} onPointerEnter={prefetch} onFocus={prefetch}>
         <RecipeThumb recipe={recipe} variant="row" />
         <div className={styles.body}>
           <h2 className={styles.title}>{recipe.title}</h2>

@@ -1,8 +1,15 @@
-import { formatComplexity, formatMinutes, type RecipeDetails } from '@/entities/recipe';
+import { formatComplexity, formatMinutes, type RecipeSummary } from '@/entities/recipe';
 import styles from './RecipeHeader.module.css';
 
 interface RecipeHeaderProps {
-  recipe: RecipeDetails;
+  /**
+   * Хватает полей краткой карточки — поэтому шапку можно показать сразу из кэша списка, пока грузится полный рецепт.
+   * Описание и источник есть только у полного.
+   */
+  recipe: Pick<RecipeSummary, 'title' | 'complexityName' | 'cookingTimeMinutes' | 'createdByFirstName' | 'tags'> & {
+    description?: string | null;
+    sourceUrl?: string | null;
+  };
 }
 
 /** Название, «сложность · время · автор», теги, описание и ссылка на источник. */

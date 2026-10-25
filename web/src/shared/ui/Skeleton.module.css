@@ -1,0 +1,25 @@
+/* Цвет — рамки темы: в светлых темах светло-серый, в тёмных — чуть светлее фона. */
+.skeleton {
+  display: block;
+  flex: none;
+  background: linear-gradient(90deg, var(--border) 0%, var(--card) 50%, var(--border) 100%) 0 0 / 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* Кому анимации мешают (настройка «уменьшить движение») — просто серый блок. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: var(--border);
+  }
+}

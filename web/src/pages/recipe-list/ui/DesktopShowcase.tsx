@@ -1,5 +1,12 @@
 import type { ReactNode } from 'react';
-import { RecipeTile, type MealGroup, type MealGroupId, type RecipeSummary } from '@/entities/recipe';
+import {
+  RecipeTile,
+  RecipeTileSkeleton,
+  type MealGroup,
+  type MealGroupId,
+  type RecipeSummary,
+} from '@/entities/recipe';
+import { Skeleton } from '@/shared/ui';
 import { useCollapseOnScroll } from '@/shared/lib';
 import { DesktopHeader } from '@/widgets/app-header';
 import { RecipeSearchInput } from './RecipeSearchInput';
@@ -95,6 +102,26 @@ export function DesktopShowcase({
       </DesktopHeader>
 
       <main className={styles.content}>{content}</main>
+    </div>
+  );
+}
+
+/** Пока список грузится — две полки-заглушки. */
+export function DesktopShowcaseSkeleton() {
+  return (
+    <div className={styles.skeleton} role="status" aria-label="Загружаем рецепты">
+      {[0, 1].map((shelf) => (
+        <section key={shelf}>
+          <div className={styles.sectionHeader}>
+            <Skeleton width={160} height={26} />
+          </div>
+          <ul className={styles.shelf}>
+            {Array.from({ length: 4 }, (_, index) => (
+              <RecipeTileSkeleton key={index} />
+            ))}
+          </ul>
+        </section>
+      ))}
     </div>
   );
 }

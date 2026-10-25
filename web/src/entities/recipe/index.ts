@@ -21,6 +21,7 @@ export {
 export { isInMealGroup, mealGroups } from './lib/mealGroups';
 export type { MealGroup, MealGroupId } from './lib/mealGroups';
 export { RecipeCard } from './ui/RecipeCard';
+export { RecipeCardSkeleton, RecipeTileSkeleton } from './ui/RecipeSkeletons';
 export { RecipeThumb } from './ui/RecipeThumb';
 export { RecipeTile } from './ui/RecipeTile';
 export { getRecipe, getRecipes, recipeKeys, recipeListQuery, recipeQuery } from './api/recipeQueries';

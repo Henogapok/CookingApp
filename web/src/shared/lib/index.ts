@@ -2,3 +2,4 @@ export { autoThemes, initTheme, resolveTheme, setThemeChoice, themes, useThemeCh
 export type { ThemeChoice, ThemeId, ThemeInfo } from './theme';
 export { useMediaQuery } from './useMediaQuery';
 export { useCollapseOnScroll } from './useCollapseOnScroll';
+export { useWakeLock } from './useWakeLock';

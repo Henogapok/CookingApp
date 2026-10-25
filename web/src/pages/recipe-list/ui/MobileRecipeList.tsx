@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { mealGroups, RecipeCard, type MealGroupId, type RecipeSummary } from '@/entities/recipe';
+import { mealGroups, RecipeCard, RecipeCardSkeleton, type MealGroupId, type RecipeSummary } from '@/entities/recipe';
 import { useCollapseOnScroll } from '@/shared/lib';
 import { ProfileButton, ProfileMenu } from '@/widgets/app-header';
 import { RecipeSearchInput } from './RecipeSearchInput';
@@ -81,5 +81,16 @@ export function MobileRecipeList({
         <ProfileMenu variant="sheet" userName={userName} onSignOut={onSignOut} onClose={() => setMenuOpen(false)} />
       )}
     </div>
+  );
+}
+
+/** Пока список грузится — заглушки строк той же формы. */
+export function MobileRecipeListSkeleton() {
+  return (
+    <ul className={styles.list} role="status" aria-label="Загружаем рецепты">
+      {Array.from({ length: 6 }, (_, index) => (
+        <RecipeCardSkeleton key={index} />
+      ))}
+    </ul>
   );
 }
