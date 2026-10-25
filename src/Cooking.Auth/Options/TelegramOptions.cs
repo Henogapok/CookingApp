@@ -13,4 +13,10 @@ public class TelegramOptions
 
     /// <summary>Username бота без @; если задан — getMe не вызывается.</summary>
     public string? BotUsername { get; set; }
+
+    /// <summary>
+    /// Показывать кнопку Telegram Login Widget. Виджет работает только на домене, привязанном к боту (/setdomain в BotFather),
+    /// на localhost — нет, поэтому включён только в проде (Telegram__LoginWidgetEnabled=true); локально — вход через бота.
+    /// </summary>
+    public bool LoginWidgetEnabled { get; set; }
 }
