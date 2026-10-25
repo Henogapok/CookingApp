@@ -14,7 +14,7 @@ public class FamiliesController : BaseController
     [HttpPost]
     public async Task<IActionResult> Create(CreateFamilyRequest request, CancellationToken cancellationToken)
     {
-        var result = await Mediator.Send(new CreateFamilyCommand(request.UserId, request.Name), cancellationToken);
+        var result = await Mediator.Send(new CreateFamilyCommand(CurrentUserId, request.Name), cancellationToken);
 
         return result.IsSuccess
             ? CreatedAtAction(nameof(GetById), new { id = result.Value }, result.Value)
@@ -22,14 +22,14 @@ public class FamiliesController : BaseController
     }
 
     [HttpPost("{id:guid}/invites")]
-    public async Task<IActionResult> CreateInvite(Guid id, FamilyActorRequest request, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new CreateFamilyInviteCommand(id, request.UserId), cancellationToken));
+    public async Task<IActionResult> CreateInvite(Guid id, CancellationToken cancellationToken)
+        => HandleResult(await Mediator.Send(new CreateFamilyInviteCommand(id, CurrentUserId), cancellationToken));
 
     [HttpPost("invites/{code}/accept")]
-    public async Task<IActionResult> AcceptInvite(string code, FamilyActorRequest request, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new AcceptFamilyInviteCommand(code, request.UserId), cancellationToken));
+    public async Task<IActionResult> AcceptInvite(string code, CancellationToken cancellationToken)
+        => HandleResult(await Mediator.Send(new AcceptFamilyInviteCommand(code, CurrentUserId), cancellationToken));
 
     [HttpPost("{id:guid}/leave")]
-    public async Task<IActionResult> Leave(Guid id, FamilyActorRequest request, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new LeaveFamilyCommand(id, request.UserId), cancellationToken));
+    public async Task<IActionResult> Leave(Guid id, CancellationToken cancellationToken)
+        => HandleResult(await Mediator.Send(new LeaveFamilyCommand(id, CurrentUserId), cancellationToken));
 }

@@ -56,6 +56,25 @@ public class BotCommandNamesTests
         }
     }
 
+    [Fact]
+    public void Callbacks_LoginButtons_FitLimit_AndRoundTrip()
+    {
+        var code = new string('A', 32);
+
+        foreach (var (data, prefix) in new[]
+                 {
+                     (BotCallbacks.LoginConfirm(code), BotCallbacks.LoginConfirmPrefix),
+                     (BotCallbacks.LoginDecline(code), BotCallbacks.LoginDeclinePrefix),
+                 })
+        {
+            Assert.True(System.Text.Encoding.UTF8.GetByteCount(data) <= 64, data);
+            Assert.Equal(code, BotCallbacks.MatchCode(data, prefix));
+        }
+
+        Assert.Null(BotCallbacks.MatchCode(BotCallbacks.LoginConfirmPrefix, BotCallbacks.LoginConfirmPrefix));
+        Assert.Null(BotCallbacks.MatchCode(BotCallbacks.LoginDecline(code), BotCallbacks.LoginConfirmPrefix));
+    }
+
     [Theory]
     [InlineData("draft:save:not-a-guid")]
     [InlineData("recipe:00000000-0000-0000-0000-000000000001")]

@@ -1,19 +1,24 @@
 # Деплой на VPS
 
-Сервер: Vultr, Ubuntu 26.04, `linuxuser@80.240.24.108`, домен `cocking.fyi`. На сервере уже стоят Docker, ufw (22/80/443) и swap.
+Сервер: Vultr, Ubuntu 26.04, `linuxuser@80.240.24.108`, домен `cocking.fyi` (DNS — Porkbun: A-записи `cocking.fyi` и `auth.cocking.fyi` → IP сервера). На сервере уже стоят Docker, ufw (22/80/443) и swap.
 
 ## Как это работает
 
 ```
 push в main ──► GitHub Actions: Deploy
                  1. тесты (тот же ci.yml)
-                 2. docker build → ghcr.io/henogapok/cooking-api:<sha> и :latest
+                 2. docker build → ghcr.io/henogapok/cooking-api и cooking-auth (:<sha> и :latest)
                  3. по SSH: копирует docker-compose.yml, Caddyfile и .env в ~/cooking
                  4. docker compose pull && docker compose up -d
 ```
 
-На сервере четыре контейнера: **api** (Api + бот, webhook), **postgres**, **seq** (логи), **caddy** (HTTPS-сертификат и проксирование).
-Миграции EF применяются сами при старте Api (`Database__MigrateOnStartup=true`).
+На сервере пять контейнеров: **api** (Api + бот, webhook), **auth** (сервер авторизации, `https://auth.cocking.fyi`),
+**postgres**, **seq** (логи), **caddy** (HTTPS-сертификаты и проксирование).
+Миграции EF применяются сами при старте Api и Auth (`Database__MigrateOnStartup=true`, под advisory lock — не мешают друг другу).
+
+Ключи подписи токенов Auth создаёт сам при первом старте и хранит на volume `auth_keys` (`/keys/*.pfx`), ключи cookie сессии
+(Data Protection) — в таблице `DataProtectionKeys`. **Не удалять volume `auth_keys`**: новые ключи = все выданные токены
+недействительны, всем придётся войти заново (данные при этом не теряются).
 
 **Секреты** (токены, ключи, пароль БД) хранятся в GitHub → Secrets. При каждом деплое workflow собирает из них файл
 `~/cooking/.env` на сервере, а docker compose подставляет значения оттуда в переменные окружения контейнеров
@@ -73,10 +78,13 @@ openssl rand -hex 32
 ```bash
 ssh linuxuser@80.240.24.108
 cd ~/cooking
-docker compose ps                 # все четыре — running / healthy
+docker compose ps                 # все пять — running / healthy
 docker compose logs api --tail 50 # "Telegram webhook registered at https://cocking.fyi/..."
+docker compose logs auth --tail 50
 docker compose logs caddy --tail 20
 ```
+
+https://auth.cocking.fyi/.well-known/openid-configuration должен открыться в браузере и везде содержать `https://auth.cocking.fyi/`.
 
 И написать прод-боту `/start`.
 
@@ -92,7 +100,7 @@ ssh -N -L 5341:localhost:5341 linuxuser@80.240.24.108
 
 > Если локально тоже запущен Seq из `docker-compose.yml`, порт 5341 занят — используйте `-L 5342:localhost:5341` и http://localhost:5342.
 
-**Откат** на предыдущую версию: на сервере в `~/cooking/.env` поменять `API_TAG` на SHA нужного коммита и `docker compose up -d`
+**Откат** на предыдущую версию: на сервере в `~/cooking/.env` поменять `IMAGE_TAG` на SHA нужного коммита и `docker compose up -d`
 (следующий деплой перезапишет `.env`). Или Actions → Deploy → Run workflow на нужном коммите.
 
 **Бэкап базы вручную** (кроме автобэкапов Vultr):
@@ -107,5 +115,5 @@ docker compose exec -T postgres pg_dump -U recipe_user recipe_db | gzip > ~/reci
 
 ## Что пока закрыто
 
-Caddy пропускает наружу только `/api/telegram/webhook`. Остальной REST-API без авторизации (UserId в запросе),
-поэтому снаружи отвечает 404. Откроем вместе с PWA и входом через Telegram.
+Caddy пропускает к Api только `/api/telegram/webhook`, остальное снаружи отвечает 404 — откроем вместе с PWA.
+Auth открыт целиком, но клиентов OAuth в проде пока нет (Swagger — только локально), так что токены выдавать некому до PWA.

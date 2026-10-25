@@ -20,9 +20,8 @@ public class LoggingBehavior<TRequest, TResponse>(ILogger<LoggingBehavior<TReque
 {
     private static readonly string RequestName = typeof(TRequest).Name;
 
-    private static readonly LogLevel Level = RequestName.EndsWith("Query", StringComparison.Ordinal)
-        ? LogLevel.Debug
-        : LogLevel.Information;
+    private static readonly LogLevel Level =
+        RequestName.EndsWith("Query", StringComparison.Ordinal) ? LogLevel.Debug : LogLevel.Information;
 
     // Почти у всех команд есть UserId — кто действовал; ищем один раз на тип запроса.
     private static readonly PropertyInfo? UserIdProperty = typeof(TRequest).GetProperty("UserId");

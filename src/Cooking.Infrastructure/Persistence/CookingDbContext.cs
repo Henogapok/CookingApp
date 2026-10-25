@@ -4,15 +4,18 @@ using Cooking.Domain.Entities.Ingredients;
 using Cooking.Domain.Entities.Recipes;
 using Cooking.Domain.Entities.Tags;
 using Cooking.Domain.Entities.Users;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cooking.Infrastructure.Persistence;
 
-public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbContext(options), IDataContext
+public class CookingDbContext(DbContextOptions<CookingDbContext> options)
+    : DbContext(options), IDataContext, IDataProtectionKeyContext
 {
     public DbSet<Family> Families => Set<Family>();
     public DbSet<User> Users => Set<User>();
     public DbSet<FamilyInvite> FamilyInvites => Set<FamilyInvite>();
+    public DbSet<LoginRequest> LoginRequests => Set<LoginRequest>();
 
     public DbSet<Recipe> Recipes => Set<Recipe>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
@@ -30,9 +33,18 @@ public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbCo
     public DbSet<TagType> TagTypes => Set<TagType>();
     public DbSet<RecipeTag> RecipeTags => Set<RecipeTag>();
 
+    /// <summary>
+    /// Ключи Data Protection сервера авторизации (Cooking.Auth): ими шифруется cookie сессии.
+    /// Хранятся в базе, чтобы сессии переживали перезапуск/деплой контейнера и попадали в бэкап вместе с данными.
+    /// </summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CookingDbContext).Assembly);
+
+        // Таблицы сервера авторизации (Cooking.Auth): клиенты, scope'ы, выданные разрешения и токены.
+        modelBuilder.UseOpenIddict();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

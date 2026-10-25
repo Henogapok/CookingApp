@@ -1,6 +1,6 @@
-# Прод на VPS: Api (с ботом) + Postgres + Seq + Caddy. Значения ${...} — из .env рядом (его пишет workflow деплоя).
+# Прод на VPS: Api (с ботом) + Auth (сервер авторизации) + Postgres + Seq + Caddy. Значения ${...} — из .env рядом (его пишет workflow деплоя).
 # Наружу открыт только Caddy (80/443). Docker обходит ufw для опубликованных портов,
-# поэтому у Postgres и Api портов нет совсем, а Seq слушает только localhost (смотреть через SSH-туннель).
+# поэтому у Postgres, Api и Auth портов нет совсем, а Seq слушает только localhost (смотреть через SSH-туннель).
 name: cooking
 
 x-logging: &logging
@@ -11,7 +11,7 @@ x-logging: &logging
 
 services:
   api:
-    image: ghcr.io/henogapok/cooking-api:${API_TAG:-latest}
+    image: ghcr.io/henogapok/cooking-api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -26,10 +26,37 @@ services:
       Telegram__WebhookSecretToken: ${TELEGRAM_WEBHOOK_SECRET:?}
       Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      # Api проверяет JWT по ключам Auth: скачивает https://auth.<домен>/.well-known/... через Caddy.
+      Auth__Authority: https://auth.${DOMAIN:?}/
       # Console (WriteTo:0) — из appsettings.json, сюда добавляем Seq вторым sink'ом.
       Serilog__WriteTo__1__Name: Seq
       Serilog__WriteTo__1__Args__serverUrl: http://seq
     mem_limit: 1g
+    logging: *logging
+
+  auth:
+    image: ghcr.io/henogapok/cooking-auth:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=recipe_db;Username=recipe_user;Password=${POSTGRES_PASSWORD:?}"
+      # Миграции применяют оба сервиса — под advisory lock Postgres, так что одновременный старт безопасен.
+      Database__MigrateOnStartup: "true"
+      # Тот же прод-бот: username для ссылки входа, позже — проверка подписи Telegram Login Widget.
+      Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:?}
+      # Адрес в поле iss токенов — публичный, а не http://auth:8080, который Auth видит изнутри docker-сети.
+      Auth__Issuer: https://auth.${DOMAIN:?}/
+      # Ключи подписи/шифрования токенов: создаются при первом старте и дальше живут на volume auth_keys.
+      Auth__Certificates__SigningPath: /keys/signing.pfx
+      Auth__Certificates__EncryptionPath: /keys/encryption.pfx
+      Serilog__WriteTo__1__Name: Seq
+      Serilog__WriteTo__1__Args__serverUrl: http://seq
+    volumes:
+      - auth_keys:/keys
+    mem_limit: 256m
     logging: *logging
 
   postgres:
@@ -71,6 +98,7 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+      - auth
     environment:
       DOMAIN: ${DOMAIN:?}
     ports:
@@ -85,6 +113,7 @@ services:
 
 volumes:
   pg_data:
+  auth_keys:
   seq_data:
   caddy_data:
   caddy_config:

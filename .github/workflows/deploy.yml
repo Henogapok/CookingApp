@@ -1,6 +1,6 @@
 name: Deploy
 
-# Каждый push в main: тесты → образ Api в GHCR → на сервере docker compose up. Инструкция — deploy/README.md.
+# Каждый push в main: тесты → образы Api и Auth в GHCR → на сервере docker compose up. Инструкция — deploy/README.md.
 on:
   push:
     branches: [ main ]
@@ -10,7 +10,8 @@ on:
 concurrency: deploy
 
 env:
-  IMAGE: ghcr.io/henogapok/cooking-api
+  API_IMAGE: ghcr.io/henogapok/cooking-api
+  AUTH_IMAGE: ghcr.io/henogapok/cooking-auth
 
 jobs:
   test:
@@ -33,13 +34,27 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      # Один Dockerfile, два stage'а (--target): общий stage сборки собирается один раз и берётся из кэша buildx.
+      - name: Build Api image
+        uses: docker/build-push-action@v6
         with:
           context: .
+          target: api
           push: true
           tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.API_IMAGE }}:latest
+            ${{ env.API_IMAGE }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build Auth image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: auth
+          push: true
+          tags: |
+            ${{ env.AUTH_IMAGE }}:latest
+            ${{ env.AUTH_IMAGE }}:${{ github.sha }}
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
 
   deploy:
@@ -75,7 +90,7 @@ jobs:
           umask 077
           {
             printf 'DOMAIN=%s\n' "$DOMAIN"
-            printf 'API_TAG=%s\n' "$GITHUB_SHA"
+            printf 'IMAGE_TAG=%s\n' "$GITHUB_SHA"
             printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
             printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
             printf 'TELEGRAM_WEBHOOK_SECRET=%s\n' "$TELEGRAM_WEBHOOK_SECRET"

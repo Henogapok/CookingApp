@@ -1,34 +1,29 @@
-using Cooking.Bot;
+using Cooking.Api.Extensions;
 using Cooking.Api.ExceptionHandling;
 using Cooking.Api.Middleware;
+using Cooking.Api.Options;
 using Cooking.Application;
+using Cooking.Bot;
 using Cooking.Infrastructure;
 using Cooking.Infrastructure.Persistence;
 using Serilog;
 
-const string PwaCorsPolicy = "Pwa";
-
 var builder = WebApplication.CreateBuilder(args);
+var authOptions = builder.Configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>() ?? new AuthOptions();
 
 builder.Services.AddSerilog(config => config.ReadFrom.Configuration(builder.Configuration));
 
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddRecipeParsing(builder.Configuration);
 builder.Services.AddApplication();
 builder.Services.AddTelegramBot(builder.Configuration);
+
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddJwtAuthentication(authOptions);
+builder.Services.AddSwaggerWithOAuth(authOptions);
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
-
-builder.Services.AddCors(options =>
-{
-    // TODO: заменить на реальный origin PWA, когда она появится.
-    options.AddPolicy(PwaCorsPolicy, policy => policy
-        .WithOrigins("http://localhost:5173")
-        .AllowAnyHeader()
-        .AllowAnyMethod());
-});
+builder.Services.AddPwaCors();
 
 var app = builder.Build();
 
@@ -39,15 +34,12 @@ if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
 app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseExceptionHandler();
 app.UseSerilogRequestLogging();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwaggerWithOAuth(authOptions);
 
 app.UseHttpsRedirection();
-app.UseCors(PwaCorsPolicy);
+app.UseCors(ServiceCollectionExtensions.PwaCorsPolicy);
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 app.MapTelegramWebhook();
