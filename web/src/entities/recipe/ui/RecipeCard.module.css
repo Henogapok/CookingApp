@@ -1,0 +1,22 @@
+.card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+/* «Легко · 25 мин · 2 порц.» — точки между элементами рисует CSS, а не код компонента. */
+.meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.meta span + span::before {
+  content: ' · ';
+}

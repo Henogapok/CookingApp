@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. Ещё нет: PWA.
+Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»).
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -42,6 +42,89 @@ Domain ← Application ← Infrastructure ← Api, Auth
 
 `AddInfrastructure` — база и репозитории (нужны Api и Auth), `AddRecipeParsing` — LLM, Reels и фоновая очередь (только Api).
 
+## Правила разработки
+
+Обязательны для всего нового кода. Если правило мешает — сначала обсуждаем и меняем его здесь, потом код.
+
+### Бэкенд: путь запроса
+
+```
+Controller (Api) / BotUpdateHandler (Bot)            — только перевод HTTP/Telegram ↔ команда
+  └─► MediatR: LoggingBehavior → ValidationBehavior   — журнал действия; FluentValidation до хендлера
+        └─► Handler (Application)                     — сценарий: вызывает интерфейсы, сам в базу не ходит
+              └─► I<Feature>RepositoryService (Application, интерфейс)
+                    └─► <Feature>RepositoryService (Infrastructure) — EF Core через IDataContext, проверки доступа
+```
+
+- **Контроллеры и бот тонкие**: прочитать запрос → собрать команду (`UserId = CurrentUserId` из токена, никогда из тела запроса) → `Mediator.Send` → `HandleResult`. Логики, EF и `try/catch` в них нет.
+- **Хендлеры** не знают про EF и HTTP. CRUD-хендлер — одна строка (делегирует репозиторию); сценарий из нескольких шагов (как `ParseRecipeDraftCommandHandler`) — оркестрирует интерфейсы. `IDataContext` в Application не используется (исключение — health check).
+- **Репозиторий-сервис** (`I<Feature>RepositoryService` в Application, реализация в `Infrastructure/Repositories`) — вся работа с базой фичи и проверки, которым нужна база: существование связанных записей, права доступа (рецепт видят автор и семья), конфликты.
+- **Внешние сервисы** (LLM, Whisper, yt-dlp, позже FatSecret) — интерфейс в Application (`IRecipeTextParser`, `ISpeechToText`…), реализация в Infrastructure. Без ключа — не падаем при старте, а отвечаем `ErrorCode.Unavailable`.
+- **Результат клиенту из фоновой работы** — через интерфейс в Application (`IRecipeDraftNotifier`), а не прямым вызовом бота: PWA и бот — равноправные клиенты одних и тех же команд.
+
+### Файлы и имена (Application)
+
+- Папка на фичу: `Application/<Фича>/` → `Commands/`, `Queries/`, `I<Фича>RepositoryService.cs`, DTO, общие `*Fields` + `*FieldsValidator` (поля для create/update).
+- На каждую команду три файла: `XxxCommand.cs` (record, `IRequest<Result<T>>`), `XxxCommandHandler.cs`, `XxxCommandValidator.cs`; запросы — так же с `Query`. Один тип — один файл.
+- Имя запроса на чтение обязательно оканчивается на `Query` (LoggingBehavior пишет их на Debug), остальное — `Command`. Действие пользователя — свойство `UserId` (по нему LoggingBehavior пишет, кто действовал).
+- Ответы — `*Dto` (records); тела HTTP-запросов — `Api/Contracts/*Request` с методом `ToFields()`/`ToCommand()`; списки, не пришедшие в JSON, считаем пустыми.
+- Справочники — по константам `ReferenceIds`, а не по имени.
+
+### Ошибки
+
+- Ожидаемые неудачи — не исключения, а `Result.Fail(new AppError(message, ErrorCode))` (FluentResults). Код → HTTP-статус переводит `BaseController.HandleFailure`: `Validation` 400, `Forbidden` 403, `NotFound` 404, `LogicConflict` 409, `ExternalService` 502, `Unavailable` 503.
+- Чужой ресурс — `NotFound`, а не `Forbidden`: не раскрываем, что он существует.
+- Исключения — только для неожиданного; их ловит `GlobalExceptionHandler` (500; нарушение unique/FK в Postgres → 409).
+- Текст `AppError` и логов — по-английски; текст, который видит пользователь (бот, страница входа, заголовки ProblemDetails), — по-русски.
+
+### Логирование (Serilog → Seq)
+
+- **Где пишем:**
+  - `LoggingBehavior` — одна строка на каждую команду/запрос (кто, что, сколько мс, итог). Поэтому в хендлерах, репозиториях и контроллерах логов **нет**.
+  - Интеграции с внешним миром (LLM, Whisper, yt-dlp, Telegram API): Information — краткий итог успеха (размер, время), Warning — отказ сервиса, Error — исключение.
+  - Фоновые службы (`RecipeParsingBackgroundService`, polling бота): Warning — задача не выполнена, Error — исключение (служба при этом продолжает работать).
+  - Auth — явные логи входа и выдачи токенов (там нет MediatR, LoggingBehavior не работает).
+  - `GlobalExceptionHandler` — Error на каждое необработанное исключение.
+- **Уровни:** Debug — частое и шумное (опрос входа, запросы на чтение); Information — действия пользователей и итоги интеграций; Warning — ожидаемые сбои; Error — исключения.
+- **Никогда не пишем:** токены и ключи (бота, API, JWT, refresh), PollToken, код входа, данные Telegram Login Widget, тексты рецептов и правок, тела запросов. Можно: Id пользователя/черновика, имя, длины, статусы, время.
+- Только шаблоны с плейсхолдерами (`"Draft {DraftId} parsed"`), без интерполяции `$"..."` — иначе Seq не сможет фильтровать по полям.
+
+### Хосты (Api, Auth)
+
+- Только контроллеры, без minimal API (исключение — webhook бота в `Cooking.Bot`). Логика хоста — в `Services/`, настройки — `Options/` (класс на файл), запросы/ответы — `Contracts/`, шаги запуска — `Seeding/` (явный вызов, не скрытый hosted service).
+- `Program.cs` читается сверху вниз: регистрации — `Extensions/ServiceCollectionExtensions.cs` (`AddXxx`), конвейер и шаги старта — `Extensions/WebApplicationExtensions.cs`.
+
+### Конфигурация и секреты
+
+- Настройки — секциями в `appsettings.json` + класс в `Options/`. Секреты — только `dotnet user-secrets` локально и переменные окружения (из GitHub Secrets) в проде; в git — никогда.
+
+### База
+
+- Code First: конфигурация сущности — `Infrastructure/Persistence/Configurations/<область>/<Сущность>Configuration.cs`; все сущности — от `BaseEntity` (кроме справочников).
+- Миграция: `dotnet ef migrations add <Имя> --project src/Cooking.Infrastructure --startup-project src/Cooking.Api`; Id существующих seed-записей не меняем.
+
+### Тесты
+
+- xUnit. `Application.Tests` — репозитории-сервисы на EF InMemory и валидаторы; чистые функции (маппер, калькулятор КБЖУ, форматирование бота, подпись виджета) — обязательно с тестами.
+- Имя теста — `Сценарий_Результат` (`DuplicateTags_FailValidation`, `Verify_OutdatedAuthDate_Fails`).
+
+### Код
+
+- Комментарии и XML-doc — по-русски, объясняют «почему», а не «что». Публичные интерфейсы и неочевидные решения — с `<summary>`.
+- Новый код повторяет стиль соседнего: primary constructors, records для команд/DTO, `CancellationToken` — последним параметром во всех async-методах.
+
+### Фронтенд (web/)
+
+- Архитектура — Feature-Sliced Design, правила — в разделе «PWA (web/)»; проверка — `npm run build`, `npm run lint`, `npm run lint:fsd`.
+- Только функциональные компоненты; именованные экспорты (`export function RecipeCard`); props — интерфейс `<Компонент>Props`; без `any`.
+- Данные, которые вычисляются из state, не храним вторым `useState`.
+
+### Git и процесс
+
+- Ветка фичи — от `main` (`feature/<имя>`) → merge в `dev` → проверка → merge в `main` (push в `main` = деплой). Ветки после мержа не удаляем.
+- Сообщения коммитов — по-английски, без строк Co-Authored-By. Push — только с явного согласия.
+- Проверка изменений — `dotnet build` / `dotnet test` (и проверки `web/`); приложение запускает и руками проверяет автор.
+
 ## Стек
 
 - .NET 8, C#
@@ -52,7 +135,7 @@ Domain ← Application ← Infrastructure ← Api, Auth
 - Whisper API (OpenAI) — Speech-to-Text
 - Claude API / OpenAI API — структурирование рецептов через LLM
 - SignalR — реалтайм (будущее: список покупок)
-- PWA (фронтенд, будет позже)
+- PWA — React + TypeScript + Vite (`web/`, см. «PWA»)
 
 ## Команды
 
@@ -428,6 +511,30 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Прод: ключи подписи/шифрования — `.pfx` из `Auth:Certificates` (нет файла — Auth создаёт самоподписанный при старте; в проде на volume `auth_keys`), не заданы вне Development — Auth не стартует. Ключи Data Protection (cookie сессии) — в Postgres (`DataProtectionKeys`). За Caddy — `UseForwardedHeaders` (X-Forwarded-Proto), `Auth:Issuer = https://auth.cocking.fyi/`.
 - **Вход через Telegram Login Widget**: кнопка на `/login` (скрипт `telegram-widget.js`, username бота — из `GET /login/options`) → Telegram сам подтверждает пользователя и отдаёт странице подписанные данные → `POST /login/telegram` → `TelegramWidgetLoginService`: подпись проверяет `TelegramWidgetSignature` (HMAC-SHA256, ключ = SHA256(токен бота), `auth_date` не старше суток; покрыт тестами), пользователь регистрируется так же идемпотентно, как на `/start` (`RegisterAsync`) → сессия Auth. Виджет работает только на домене, привязанном к боту (`/setdomain` у прод-бота → `auth.cocking.fyi`), на localhost — нет, поэтому включается настройкой `Telegram:LoginWidgetEnabled` (только в проде); локально — вход через бота.
 - Этап 3 — PWA (`oidc-client-ts`).
+
+## PWA (web/)
+
+React 19 + TypeScript + Vite, папка `web/` в корне (не в `src/` — там только .NET). Команды из `web/`: `npm install`, `npm run dev` (http://localhost:5173, hot reload), `npm run build` (проверка типов + сборка в `dist/`), `npm run lint` (Oxlint), `npm run lint:fsd` (Steiger — правила FSD).
+
+Структура — **Feature-Sliced Design**: функционала будет много (свайпы еды, предложения блюд, корзина, FatSecret), и одни и те же сущности (рецепт, ингредиент) нужны многим экранам.
+
+```
+web/src/
+├── main.tsx      точка входа
+├── app/          запуск: App, позже роутер и провайдеры (вход, кэш запросов); styles/global.css
+├── pages/        экраны под маршруты; собирают блоки нижних слоёв (сейчас recipe-list)
+├── widgets/      (когда понадобится) крупные блоки из нескольких фич
+├── features/     (когда понадобится) действия пользователя: свайп, в корзину, пересчёт порций, вход
+├── entities/     бизнес-сущности: тип, запросы к Api, отображение (сейчас recipe)
+└── shared/       (когда понадобится) без бизнес-логики: http-клиент, UI-кит, утилиты
+```
+
+- Слайс (`entities/recipe`, `pages/recipe-list`) делится на сегменты `ui/`, `model/` (типы, состояние), `api/`, `lib/` (чистые функции + тесты рядом).
+- Импорт только вниз: `app → pages → widgets → features → entities → shared`; слайсы одного слоя друг друга не импортируют; снаружи — только через `index.ts` слайса, по алиасу `@/` (`@/entities/recipe`).
+- Код выносим в отдельный слайс, когда у него появился второй потребитель; до этого он живёт внутри страницы (Steiger `fsd/insignificant-slice`; для `entities` — только предупреждение, они заведомо общие).
+- Слои и сегменты заводим, когда появился код, пустые папки «на будущее» не создаём.
+- Стили — CSS Modules (`Компонент.module.css` рядом с компонентом); глобально — только переменные цветов и базовые правила (`app/styles/global.css`).
+- Типы ответов Api повторяют C#-DTO в camelCase (`Guid` → `string`, `int?` → `number | null`).
 
 ## Docker (локальная разработка)
 

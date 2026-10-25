@@ -1,0 +1,14 @@
+.search {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+}
+
+.search:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
