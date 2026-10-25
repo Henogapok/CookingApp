@@ -17,6 +17,9 @@ export function RecipeCard({ recipe }: RecipeCardProps) {
         {/* Время и порции показываем, только если они известны: null → ничего не рисуем. */}
         {recipe.cookingTimeMinutes !== null && <span>{formatMinutes(recipe.cookingTimeMinutes)}</span>}
         {recipe.servings !== null && <span>{recipe.servings} порц.</span>}
+        {recipe.nutritionPerServing !== null && (
+          <span>{Math.round(recipe.nutritionPerServing.calories)} ккал/порц.</span>
+        )}
         <span>{recipe.createdByFirstName}</span>
       </p>
     </li>

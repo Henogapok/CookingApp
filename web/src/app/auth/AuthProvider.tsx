@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { AuthProvider as OidcAuthProvider } from 'react-oidc-context';
-import { authSettings } from './authSettings';
+import { userManager } from './userManager';
 
 interface AuthProviderProps {
   children: ReactNode;
@@ -14,7 +14,7 @@ function removeSignInParams() {
 /** Даёт всему приложению useAuth(): кто вошёл, access token, вход и выход. */
 export function AuthProvider({ children }: AuthProviderProps) {
   return (
-    <OidcAuthProvider {...authSettings} onSigninCallback={removeSignInParams}>
+    <OidcAuthProvider userManager={userManager} onSigninCallback={removeSignInParams}>
       {children}
     </OidcAuthProvider>
   );

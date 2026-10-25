@@ -6,8 +6,19 @@
   gap: 8px;
 }
 
-.empty {
+.status {
   color: var(--muted);
   text-align: center;
   margin-top: 32px;
+}
+
+.retry {
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
 }

@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»): вход через Auth, список рецептов пока на тестовых данных.
+Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»): вход через Auth, список рецептов из Api (загружается целиком, поиск на клиенте).
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -197,6 +197,7 @@ Controller (Api) / BotUpdateHandler (Bot)            — только перев
 - Сканирование чека → цены (KZT) в каталог ингредиентов (см. идею в конце файла)
 - Текст на экране в Reels (рецепт только в титрах): кадры из видео → Claude vision
 - Inline-режим: `@бот запрос` в любом чате (нужен `IsPersonal = true`)
+- Фото рецептов. В DTO — только ссылка (`photoUrl`), файлы через JSON не ходят; картинки кэширует браузер (HTTP-кэш, позже Service Worker), не `localStorage`. Хранилище — за интерфейсом в Application (`IPhotoStorage`): сначала диск VPS на volume, отдаёт Caddy (`/media/…`), при необходимости — S3-совместимое (Vultr Object Storage) без изменения команд. Имена файлов — `{guid}.webp` (неугадываемые: `<img>` не шлёт Bearer, поэтому файлы публичные, а ссылку выдаёт только Api с проверкой прав) + `Cache-Control: immutable`, новое фото = новое имя. При загрузке — две версии: миниатюра ~400 px для списка/полок и крупная для страницы рецепта (ImageSharp/SkiaSharp). Обложку Reels (yt-dlp) скачиваем к себе — ссылки CDN Instagram протухают. В базе сначала `Recipe.PhotoPath` (string?), таблица `RecipePhoto` — если понадобится несколько фото или фото шагов
 - Возможная фича (в реальности пока не встречалась): ссылка на сайт внутри присланного текста → сохранять как источник рецепта (SourceType Website)
 
 ## Схема базы данных (Code First, EF Core + PostgreSQL)
@@ -521,12 +522,12 @@ React 19 + TypeScript + Vite, папка `web/` в корне (не в `src/` �
 ```
 web/src/
 ├── main.tsx      точка входа
-├── app/          запуск: App (не вошёл → pages/sign-in), auth/ (вход через Cooking.Auth), styles/global.css; позже роутер и кэш запросов
+├── app/          запуск: App (не вошёл → pages/sign-in), auth/ (вход через Cooking.Auth), query/ (кэш TanStack Query), styles/global.css; позже роутер
 ├── pages/        экраны под маршруты; собирают блоки нижних слоёв (сейчас recipe-list)
 ├── widgets/      (когда понадобится) крупные блоки из нескольких фич
 ├── features/     (когда понадобится) действия пользователя: свайп, в корзину, пересчёт порций, вход
 ├── entities/     бизнес-сущности: тип, запросы к Api, отображение (сейчас recipe)
-└── shared/       (когда понадобится) без бизнес-логики: http-клиент, UI-кит, утилиты
+└── shared/       без бизнес-логики: api/ (http-клиент), позже UI-кит, утилиты
 ```
 
 - Слайс (`entities/recipe`, `pages/recipe-list`) делится на сегменты `ui/`, `model/` (типы, состояние), `api/`, `lib/` (чистые функции + тесты рядом).
@@ -537,6 +538,8 @@ web/src/
 - Темы: 4 штуки — светлые «Шалфей» (`sage`, по умолчанию, цветная шапка) и «Сливки» (`cream`), тёмные «Полночь» (`midnight`, по умолчанию) и «Графит» (`graphite`); макеты — артефакт «Макеты Cooking». Тема — набор CSS-переменных в `[data-theme="…"]`, переключается атрибутом на `<html>`. Компоненты используют только токены (`var(--bg)`, `var(--accent)`…), конкретных цветов в модулях нет — иначе одна из тем сломается. Новая тема — только по запросу. Выбор «Авто» (по умолчанию) — светлая/тёмная по `prefers-color-scheme`.
 - Выбор темы хранится в двух местах: `localStorage` (применяется до первой отрисовки, без мигания) и в профиле на сервере (`User.Theme`, null = «Авто»), чтобы тема совпадала на телефоне и компьютере; при входе серверное значение перезаписывает локальное.
 - Типы ответов Api повторяют C#-DTO в camelCase (`Guid` → `string`, `int?` → `number | null`).
+- Запросы к Api — только через `apiRequest` из `@/shared/api` (сам ставит Bearer-токен, 401 → выход, ошибки → `ApiError` с ProblemDetails; текст для пользователя — `getErrorMessage`), сами функции запросов — в сегменте `api/` сущности (`entities/recipe/api`) вместе с ключами кэша и `queryOptions`. Данные с сервера в компонентах — только через TanStack Query (`useQuery`/`useMutation`), без своих `useState` для данных, загрузки и ошибки; после изменения — `invalidateQueries` по ключу сущности. Адреса относительные (`/api/…`): в разработке их пересылает прокси Vite (`vite.config.ts` → https://localhost:7211), в проде — Caddy, поэтому PWA и Api для браузера на одном origin.
+- Рецепты пользователя и его семьи (сотни, не тысячи) PWA загружает одним запросом `GET api/recipes` (`RecipeSummaryDto` — всё для карточки и полок: теги, КБЖУ на порцию, дата) и ищет/группирует по ним на клиенте (`pages/recipe-list/lib/searchRecipes`), без запроса на каждый символ. Свежесть — штатно через TanStack Query: при открытии экрана, возврате в приложение и восстановлении сети, если данные старше `staleTime`; после своих изменений — `invalidateQueries`. Параметр `search` у Api остаётся для бота. Серверный поиск с постраничной загрузкой — когда появятся тысячи записей (общий каталог).
 
 ## Docker (локальная разработка)
 

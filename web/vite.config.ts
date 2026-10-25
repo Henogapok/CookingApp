@@ -11,4 +11,14 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  server: {
+    // Запросы на /api/… dev-сервер пересылает в Api — для браузера это тот же origin (localhost:5173), CORS не нужен.
+    // В проде то же самое сделает Caddy. secure: false — dev-сертификат .NET Node.js не доверяет (браузеру он доверен).
+    proxy: {
+      '/api': {
+        target: 'https://localhost:7211',
+        secure: false,
+      },
+    },
+  },
 })
