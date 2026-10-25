@@ -15,6 +15,9 @@ public class AuthOptions
     /// <summary>Сколько живёт сессия на самом сервере авторизации (cookie) — пока она есть, клиенты входят без логина (SSO).</summary>
     public int SessionLifetimeDays { get; set; } = 30;
 
+    /// <summary>Файлы ключей подписи/шифрования; не заданы — локально берутся dev-сертификаты OpenIddict.</summary>
+    public SigningCertificateOptions Certificates { get; set; } = new();
+
     /// <summary>Клиенты (PWA, Swagger) — при старте синхронизируются с базой (см. OAuthClientSeeder).</summary>
     public List<AuthClientOptions> Clients { get; set; } = [];
 }

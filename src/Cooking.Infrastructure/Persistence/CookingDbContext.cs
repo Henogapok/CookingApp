@@ -4,11 +4,13 @@ using Cooking.Domain.Entities.Ingredients;
 using Cooking.Domain.Entities.Recipes;
 using Cooking.Domain.Entities.Tags;
 using Cooking.Domain.Entities.Users;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cooking.Infrastructure.Persistence;
 
-public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbContext(options), IDataContext
+public class CookingDbContext(DbContextOptions<CookingDbContext> options)
+    : DbContext(options), IDataContext, IDataProtectionKeyContext
 {
     public DbSet<Family> Families => Set<Family>();
     public DbSet<User> Users => Set<User>();
@@ -30,6 +32,12 @@ public class CookingDbContext(DbContextOptions<CookingDbContext> options) : DbCo
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<TagType> TagTypes => Set<TagType>();
     public DbSet<RecipeTag> RecipeTags => Set<RecipeTag>();
+
+    /// <summary>
+    /// Ключи Data Protection сервера авторизации (Cooking.Auth): ими шифруется cookie сессии.
+    /// Хранятся в базе, чтобы сессии переживали перезапуск/деплой контейнера и попадали в бэкап вместе с данными.
+    /// </summary>
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

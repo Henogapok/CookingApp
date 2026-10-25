@@ -425,7 +425,8 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - IdentityModel в Api закреплён на одной версии 8.x: JwtBearer 8.0 тянет 7.x, OpenIddict — 8.x, смесь падает в рантайме.
 - **Вход через бота** (по схеме Device Flow): `/login` → `BotLoginService` (Auth без MediatR: вызывает `ILoginRequestRepositoryService`/`IUserRepositoryService` напрямую и сам пишет логи входа и выдачи токенов, без секретов) → ссылка `t.me/<bot>?start=login_<Code>` + секрет браузера (PollToken) в HttpOnly cookie, в базе только SHA-256. Бот на `/start login_<Code>` спрашивает «Войти?» (ссылку мог прислать чужой) → `ConfirmLoginRequestCommand` / `DeclineLoginRequestCommand`. Страница опрашивает `/login/bot/poll` (`CompleteAsync`; ожидание — в лог на Debug) и после подтверждения открывает сессию Auth. Код из ссылки без PollToken войти не даёт; запрос живёт 5 минут, одноразовый.
 - Локально: сертификаты подписи — dev-сертификаты OpenIddict (хранилище пользователя Windows). Auth нужен токен того же dev-бота (для username в ссылке): `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Auth` (или `Telegram:BotUsername`). Api: `Auth:Authority = https://localhost:7271/`.
-- Этап 2 (не сделан): Telegram Login Widget на странице входа (`/setdomain` прод-бота на домен Auth), прод — `auth.cocking.fyi`, постоянные ключи подписи и Data Protection, контейнер в compose и workflow. Этап 3 — PWA (`oidc-client-ts`).
+- Прод: ключи подписи/шифрования — `.pfx` из `Auth:Certificates` (нет файла — Auth создаёт самоподписанный при старте; в проде на volume `auth_keys`), не заданы вне Development — Auth не стартует. Ключи Data Protection (cookie сессии) — в Postgres (`DataProtectionKeys`). За Caddy — `UseForwardedHeaders` (X-Forwarded-Proto), `Auth:Issuer = https://auth.cocking.fyi/`.
+- Этап 2: прод-деплой Auth сделан; не сделан Telegram Login Widget на странице входа (`/setdomain` прод-бота на домен Auth — проверить можно только на проде). Этап 3 — PWA (`oidc-client-ts`).
 
 ## Docker (локальная разработка)
 
@@ -450,10 +451,10 @@ Postgres (`recipe-db`, порт 5432) и RabbitMQ (`recipe-mq`, AMQP 5672 / mana
 
 ## Хостинг (прод)
 
-- VPS: Vultr High Performance (1 vCPU, 2 ГБ RAM, 50 ГБ NVMe, Frankfurt, Ubuntu 26.04), `linuxuser@80.240.24.108`, домен `cocking.fyi`
-- Всё в Docker: `deploy/docker-compose.yml` — Api (с ботом, webhook) + Postgres + Seq + Caddy (HTTPS). RabbitMQ в проде нет
-- Деплой: push в main → `.github/workflows/deploy.yml` (тесты → образ из `Dockerfile` в GHCR → по SSH `docker compose up -d`). Секреты — GitHub Secrets, workflow пишет из них `~/cooking/.env`. Миграции применяются при старте Api (`Database:MigrateOnStartup`). Пошагово — `deploy/README.md`
-- Наружу через Caddy открыт только webhook Telegram: REST-API без авторизации, откроем вместе с PWA
+- VPS: Vultr High Performance (1 vCPU, 2 ГБ RAM, 50 ГБ NVMe, Frankfurt, Ubuntu 26.04), `linuxuser@80.240.24.108`, домен `cocking.fyi` + `auth.cocking.fyi` (регистратор и DNS — Porkbun)
+- Всё в Docker: `deploy/docker-compose.yml` — Api (с ботом, webhook) + Auth + Postgres + Seq + Caddy (HTTPS). RabbitMQ в проде нет
+- Деплой: push в main → `.github/workflows/deploy.yml` (тесты → образы `cooking-api` и `cooking-auth` из одного `Dockerfile` (`--target api|auth`) в GHCR → по SSH `docker compose up -d`). Секреты — GitHub Secrets, workflow пишет из них `~/cooking/.env`. Миграции применяются при старте Api (`Database:MigrateOnStartup`). Пошагово — `deploy/README.md`
+- Наружу через Caddy: у Api только webhook Telegram (REST откроем вместе с PWA), Auth — целиком на `auth.cocking.fyi`
 - Whisper API + LLM API: ~$2-4/мес при 20-30 рецептах
 
 

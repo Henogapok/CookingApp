@@ -15,6 +15,8 @@ builder.Services.AddSerilog(config => config.ReadFrom.Configuration(builder.Conf
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers();
+builder.Services.AddReverseProxySupport();
+builder.Services.AddPersistentDataProtection();
 builder.Services.AddLogin(builder.Configuration);
 builder.Services.AddSessionCookie(authOptions);
 builder.Services.AddOpenIddictServer(authOptions, builder.Environment);
@@ -24,6 +26,8 @@ var app = builder.Build();
 
 await app.PrepareDatabaseAsync();
 
+// Первым: всё остальное (OpenIddict, cookie, логи) должно видеть настоящие https и IP клиента, а не адрес Caddy.
+app.UseForwardedHeaders();
 app.UseSerilogRequestLogging();
 app.UseCors(ServiceCollectionExtensions.ClientsCorsPolicy);
 app.UseAuthentication();

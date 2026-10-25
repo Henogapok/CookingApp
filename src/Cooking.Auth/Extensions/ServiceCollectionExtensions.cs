@@ -2,8 +2,11 @@ using Cooking.Auth.Identity;
 using Cooking.Auth.Options;
 using Cooking.Auth.Seeding;
 using Cooking.Auth.Services;
+using System.Security.Cryptography.X509Certificates;
 using Cooking.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
 namespace Cooking.Auth.Extensions;
@@ -48,6 +51,39 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Ключи Data Protection, которыми ASP.NET шифрует cookie сессии (и cookie входа через бота), — в Postgres.
+    /// По умолчанию они лежат в файловой системе контейнера и пропадают при каждом деплое — вместе со всеми сессиями.
+    /// </summary>
+    public static IServiceCollection AddPersistentDataProtection(this IServiceCollection services)
+    {
+        services.AddDataProtection()
+            // Имя приложения отделяет наши ключи: cookie, зашифрованную другим приложением с той же базой, Auth не примет.
+            .SetApplicationName("Cooking.Auth")
+            .PersistKeysToDbContext<CookingDbContext>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// В проде Auth стоит за Caddy: тот принимает HTTPS и передаёт запрос по обычному HTTP, а настоящие схему и IP клиента
+    /// кладёт в заголовки X-Forwarded-Proto / X-Forwarded-For. Без их чтения Auth считает запрос http-запросом —
+    /// OpenIddict отвергает его (требует HTTPS), а адреса в discovery-документе получаются http://.
+    /// </summary>
+    public static IServiceCollection AddReverseProxySupport(this IServiceCollection services)
+    {
+        services.Configure<ForwardedHeadersOptions>(forwarded =>
+        {
+            forwarded.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            // По умолчанию заголовкам верят только от localhost, а Caddy — другой контейнер с заранее неизвестным IP.
+            // Верить всем безопасно, пока порт Auth не опубликован наружу и достучаться до него может только Caddy.
+            forwarded.KnownNetworks.Clear();
+            forwarded.KnownProxies.Clear();
+        });
+
+        return services;
+    }
+
     /// <summary>Сервер OAuth 2.0 / OpenID Connect: эндпоинты, flow, scope'ы, время жизни и подпись токенов.</summary>
     public static IServiceCollection AddOpenIddictServer(this IServiceCollection services, AuthOptions options, IHostEnvironment environment)
     {
@@ -79,13 +115,28 @@ public static class ServiceCollectionExtensions
                 // Нам нужен обычный подписанный JWT: Cooking.Api проверяет подпись по публичным ключам из /.well-known/jwks.
                 server.DisableAccessTokenEncryption();
 
-                if (!environment.IsDevelopment())
-                    throw new InvalidOperationException("Signing/encryption certificates for production are not configured yet.");
-
-                // Локально — самоподписанные сертификаты в хранилище пользователя Windows.
-                server
-                    .AddDevelopmentEncryptionCertificate()
-                    .AddDevelopmentSigningCertificate();
+                var certificates = options.Certificates;
+                if (certificates.IsConfigured)
+                {
+                    // Прод: .pfx на docker-volume — ключи те же после перезапуска и деплоя.
+                    server
+                        .AddSigningCertificate(CertificateFile.LoadOrCreate(certificates.SigningPath!, certificates.Password,
+                            "Cooking.Auth signing", X509KeyUsageFlags.DigitalSignature))
+                        .AddEncryptionCertificate(CertificateFile.LoadOrCreate(certificates.EncryptionPath!, certificates.Password,
+                            "Cooking.Auth encryption", X509KeyUsageFlags.KeyEncipherment));
+                }
+                else if (environment.IsDevelopment())
+                {
+                    // Локально — самоподписанные сертификаты в хранилище пользователя Windows.
+                    server
+                        .AddDevelopmentEncryptionCertificate()
+                        .AddDevelopmentSigningCertificate();
+                }
+                else
+                {
+                    throw new InvalidOperationException(
+                        "Auth:Certificates:SigningPath and Auth:Certificates:EncryptionPath must be set outside Development.");
+                }
 
                 // Passthrough: после проверок OpenIddict запрос доходит до AuthorizationController.
                 server.UseAspNetCore()

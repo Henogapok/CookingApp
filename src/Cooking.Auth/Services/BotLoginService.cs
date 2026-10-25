@@ -36,7 +36,8 @@ public class BotLoginService(
         }
 
         var request = created.Value;
-        logger.LogInformation("Bot login started: code {Code}, expires at {ExpiresAt}", request.Code, request.ExpiresAt);
+        // Код из ссылки в лог не пишем: это половина секрета входа (вторая — PollToken в cookie).
+        logger.LogInformation("Bot login started, expires at {ExpiresAt}", request.ExpiresAt);
         return Result.Ok(new BotLoginStarted(LoginRequestLink.Build(botUsername, request.Code), request.PollToken, request.ExpiresAt));
     }
 
