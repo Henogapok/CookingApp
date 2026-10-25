@@ -1,0 +1,130 @@
+/*
+ * Шапка прибита к экрану (fixed), под ней — постоянный отступ на высоту развёрнутой шапки (--header-height):
+ * safe area + заголовок 60 + поиск 48 + 12 + чипы 44 + низ 14 = 178px. При прокрутке строка заголовка
+ * сжимается до 12px (зазор над поиском), шапка становится ниже и просто лежит поверх списка — страница
+ * при этом не сдвигается. (Раньше шапка была sticky с компенсацией отступом, и при быстрой прокрутке
+ * над ней мог мелькнуть список.)
+ */
+.page {
+  --ease: 0.25s ease;
+  --safe-top: env(safe-area-inset-top);
+  --header-height: calc(var(--safe-top) + 178px);
+
+  min-height: 100dvh;
+}
+
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  padding: var(--safe-top) 0 14px;
+  border-radius: 0 0 28px 28px;
+  background: var(--top-bg);
+  color: var(--top-text);
+  transition: border-radius var(--ease), box-shadow var(--ease);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  height: 60px;
+  padding: 0 20px;
+  overflow: hidden;
+  transition: height var(--ease), opacity var(--ease);
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Справа место под кнопку профиля, когда поиск поднимается в её строку: 44px + 10px зазор. */
+.searchRow {
+  display: flex;
+  padding: 0 20px;
+  transition: padding var(--ease);
+}
+
+/* По центру строки заголовка ((60 - 44) / 2); свёрнуто — по центру поля поиска: 12 + (48 - 44) / 2 = 14, сдвиг +6. */
+.avatar {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  right: 20px;
+  transition: transform var(--ease);
+}
+
+.chips {
+  display: flex;
+  gap: 8px;
+  height: 44px;
+  margin-top: 12px;
+  padding: 0 20px;
+  overflow: auto hidden;
+  scrollbar-width: none;
+  /* По краям чипы растворяются (20px — как отступ): при прокрутке не вылезают на закруглённые углы шапки
+     и видно, что ряд листается. В покое в этих 20px пусто, так что ничего не меняется. */
+  mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
+  transition: height var(--ease), margin var(--ease), opacity var(--ease);
+}
+
+.chip {
+  flex: none;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--chip-border);
+  border-radius: 22px;
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chipSelected {
+  border-color: var(--chip-selected-bg);
+  background: var(--chip-selected-bg);
+  color: var(--chip-selected-text);
+}
+
+.content {
+  padding: calc(var(--header-height) + 14px) 20px calc(20px + env(safe-area-inset-bottom));
+}
+
+/* Свёрнутая шапка — ровная полоса, закругления только у развёрнутой. */
+.collapsed .header {
+  border-radius: 0;
+  box-shadow: var(--top-shadow);
+}
+
+.collapsed .titleRow {
+  height: 12px;
+  opacity: 0;
+}
+
+.collapsed .searchRow {
+  padding-right: 74px;
+}
+
+.collapsed .avatar {
+  transform: translateY(6px);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status {
+  margin: 48px 0 0;
+  text-align: center;
+  color: var(--muted);
+}

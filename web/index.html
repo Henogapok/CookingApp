@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru" data-theme="sage">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <!-- Иконка на домашнем экране iPhone: Safari берёт её отсюда, а не из манифеста. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <meta name="apple-mobile-web-app-title" content="Cooking" />
+    <!-- viewport-fit=cover — страница заходит под вырез и полоску «домой» iPhone, отступы задаём сами через env(safe-area-inset-*). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Цвет строки состояния и панели браузера — как у шапки; после запуска его ставит тема (shared/lib/theme). -->
+    <meta name="theme-color" content="#2f5d43" />
+    <!--
+      Тема до первой отрисовки: иначе страница мигнула бы темой по умолчанию, пока грузится приложение.
+      Ключ и правила те же, что в shared/lib/theme.ts — менять вместе.
+    -->
+    <script>
+      (function () {
+        var themes = ['sage', 'cream', 'midnight', 'graphite'];
+        var choice = 'auto';
+        try {
+          choice = localStorage.getItem('cooking.theme') || 'auto';
+        } catch (e) {}
+        if (themes.indexOf(choice) < 0) {
+          choice = matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'sage';
+        }
+        document.documentElement.setAttribute('data-theme', choice);
+      })();
+    </script>
+    <title>Cooking</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

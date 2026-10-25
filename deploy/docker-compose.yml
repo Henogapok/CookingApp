@@ -54,6 +54,11 @@ services:
       # Ключи подписи/шифрования токенов: создаются при первом старте и дальше живут на volume auth_keys.
       Auth__Certificates__SigningPath: /keys/signing.pfx
       Auth__Certificates__EncryptionPath: /keys/encryption.pfx
+      # OAuth-клиент PWA: OAuthClientSeeder создаёт его при старте; CORS Auth пускает origin его redirect URI.
+      Auth__Clients__0__ClientId: cooking-pwa
+      Auth__Clients__0__DisplayName: Cooking PWA
+      Auth__Clients__0__RedirectUris__0: https://${DOMAIN:?}/auth/callback
+      Auth__Clients__0__PostLogoutRedirectUris__0: https://${DOMAIN:?}/
       Serilog__WriteTo__1__Name: Seq
       Serilog__WriteTo__1__Args__serverUrl: http://seq
     volumes:
@@ -95,8 +100,9 @@ services:
     mem_limit: 512m
     logging: *logging
 
+  # Caddy со сборкой PWA внутри (/srv): HTTPS, статика PWA, прокси на Api и Auth. Caddyfile — снаружи, рядом.
   caddy:
-    image: caddy:2
+    image: ghcr.io/henogapok/cooking-web:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - api

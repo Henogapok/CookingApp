@@ -1,0 +1,160 @@
+/* Глобальные стили (слой app): только переменные темы и базовые правила. Стили компонентов — в их *.module.css. */
+
+/*
+ * Тема — набор переменных в [data-theme] на <html>. Компоненты берут цвета только отсюда (var(--bg)…),
+ * поэтому новая тема — это новый блок переменных, без правок компонентов. Макеты — артефакт «Макеты Cooking».
+ */
+[data-theme='sage'] {
+  --bg: #e9eee4;
+  --card: #f8faf5;
+  --text: #1f2b21;
+  --muted: #66745f;
+  --border: #d3dccb;
+  --accent: #c0522b;
+  --on-accent: #ffffff;
+
+  /* Цветная шапка: свой фон, текст и поле поиска на нём. */
+  --top-bg: #2f5d43;
+  --top-text: #f1f5ee;
+  --top-muted: #bfd3c4;
+  --search-bg: #f8faf5;
+  --search-border: #2f5d43;
+  /* Тень свёрнутой шапки: объём при прокрутке. */
+  --top-shadow: 0 6px 18px rgb(0 0 0 / 16%), 0 1px 3px rgb(0 0 0 / 10%);
+
+  /* Фильтры-чипы на шапке; выбранный — светлый на зелёном. */
+  --chip-bg: rgb(255 255 255 / 12%);
+  --chip-border: rgb(255 255 255 / 38%);
+  --chip-text: #f1f5ee;
+  --chip-selected-bg: #f1f5ee;
+  --chip-selected-text: #2f5d43;
+
+  /* Подложки вместо фото, пока фото нет. */
+  --tint-1: #d5e0c9;
+  --tint-2: #e7d3c2;
+  --tint-3: #dde3c3;
+  --tint-4: #e5cfc7;
+  --tint-5: #c9d9cf;
+  --tint-6: #d8dce6;
+
+  color-scheme: light;
+}
+
+/* У остальных тем шапка тоновая — чуть темнее фона (светлые) или светлее (тёмные), чтобы при прокрутке не сливалась с ним. */
+[data-theme='cream'] {
+  --bg: #f8f0e3;
+  --card: #fffaf2;
+  --text: #3b2618;
+  --muted: #8a6f5a;
+  --border: #e8d8c3;
+  --accent: #b8461b;
+  --on-accent: #fff8ee;
+
+  --top-bg: #efe1cb;
+  --top-text: var(--text);
+  --top-muted: var(--muted);
+  --search-bg: var(--card);
+  --search-border: #e0caa9;
+  /* Тень свёрнутой шапки: объём при прокрутке. */
+  --top-shadow: 0 6px 18px rgb(0 0 0 / 16%), 0 1px 3px rgb(0 0 0 / 10%);
+
+  --chip-bg: var(--card);
+  --chip-border: #e0caa9;
+  --chip-text: var(--text);
+  --chip-selected-bg: #b8461b;
+  --chip-selected-text: #fff8ee;
+
+  --tint-1: #f1d9bf;
+  --tint-2: #efcdb8;
+  --tint-3: #e9ddb2;
+  --tint-4: #e8c9c0;
+  --tint-5: #dce0c0;
+  --tint-6: #d9d3c5;
+
+  color-scheme: light;
+}
+
+[data-theme='midnight'] {
+  --bg: #0d1020;
+  --card: #161a2e;
+  --text: #e7e9f7;
+  --muted: #8d93b3;
+  --border: #262b47;
+  --accent: #a5b4fc;
+  --on-accent: #0d1020;
+
+  --top-bg: #1a1f3b;
+  --top-text: var(--text);
+  --top-muted: var(--muted);
+  --search-bg: var(--card);
+  --search-border: #2f3558;
+  /* На тёмном фоне тень нужна плотнее, чтобы быть заметной. */
+  --top-shadow: 0 8px 24px rgb(0 0 0 / 70%), 0 2px 4px rgb(0 0 0 / 50%);
+
+  --chip-bg: var(--card);
+  --chip-border: #2f3558;
+  --chip-text: var(--text);
+  --chip-selected-bg: #a5b4fc;
+  --chip-selected-text: #0d1020;
+
+  --tint-1: #232a4a;
+  --tint-2: #2e2547;
+  --tint-3: #1f3343;
+  --tint-4: #3a2840;
+  --tint-5: #24363a;
+  --tint-6: #2b2f45;
+
+  color-scheme: dark;
+}
+
+[data-theme='graphite'] {
+  --bg: #121110;
+  --card: #1e1d1b;
+  --text: #f2efea;
+  --muted: #a39d93;
+  --border: #33302c;
+  --accent: #a5b4fc;
+  --on-accent: #121110;
+
+  --top-bg: #282624;
+  --top-text: var(--text);
+  --top-muted: var(--muted);
+  --search-bg: var(--card);
+  --search-border: #3d3a35;
+  /* На тёмном фоне тень нужна плотнее, чтобы быть заметной. */
+  --top-shadow: 0 8px 24px rgb(0 0 0 / 70%), 0 2px 4px rgb(0 0 0 / 50%);
+
+  --chip-bg: var(--card);
+  --chip-border: #3d3a35;
+  --chip-text: var(--text);
+  --chip-selected-bg: #f2efea;
+  --chip-selected-text: #121110;
+
+  --tint-1: #3b2f26;
+  --tint-2: #3b2b29;
+  --tint-3: #3a3424;
+  --tint-4: #3a2a2d;
+  --tint-5: #2c3326;
+  --tint-6: #2a2d36;
+
+  color-scheme: dark;
+}
+
+:root {
+  font: 16px/1.5 'Manrope Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input {
+  font: inherit;
+}

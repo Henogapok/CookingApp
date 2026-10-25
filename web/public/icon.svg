@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Иконка приложения: миска с паром на шалфейном фоне. Исходник для PNG-иконок — npm run icons. -->
+  <rect width="512" height="512" fill="#2f5d43"/>
+  <g fill="none" stroke="#e8a27c" stroke-width="20" stroke-linecap="round">
+    <path d="M200 120c-16 20-16 38 0 56s16 36 0 56"/>
+    <path d="M256 104c-16 20-16 38 0 56s16 36 0 56"/>
+    <path d="M312 120c-16 20-16 38 0 56s16 36 0 56"/>
+  </g>
+  <rect x="100" y="256" width="312" height="30" rx="15" fill="#f1f5ee"/>
+  <path d="M118 286h276c-6 72-64 124-138 124S124 358 118 286z" fill="#f1f5ee"/>
+</svg>

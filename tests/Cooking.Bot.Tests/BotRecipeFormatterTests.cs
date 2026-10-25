@@ -149,7 +149,7 @@ public class BotRecipeFormatterTests
     [Fact]
     public void FormatListButton_OwnRecipe_ShowsTitleOnly()
     {
-        var recipe = new RecipeSummaryDto(Guid.NewGuid(), "Борщ", "Easy", 4, 45, AuthorId, "Аня");
+        var recipe = new RecipeSummaryDto(Guid.NewGuid(), "Борщ", "Easy", 4, 45, AuthorId, "Аня", DateTime.UtcNow, [], null);
 
         Assert.Equal("Борщ", BotRecipeFormatter.FormatListButton(recipe, AuthorId));
     }
@@ -157,7 +157,7 @@ public class BotRecipeFormatterTests
     [Fact]
     public void FormatListButton_FamilyMemberRecipe_AppendsAuthor()
     {
-        var recipe = new RecipeSummaryDto(Guid.NewGuid(), "Борщ", "Easy", 4, 45, AuthorId, "Аня");
+        var recipe = new RecipeSummaryDto(Guid.NewGuid(), "Борщ", "Easy", 4, 45, AuthorId, "Аня", DateTime.UtcNow, [], null);
 
         Assert.Equal("Борщ · Аня", BotRecipeFormatter.FormatListButton(recipe, Guid.NewGuid()));
     }

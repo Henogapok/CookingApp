@@ -69,7 +69,8 @@ internal static class ReferenceDataSeed
         new() { Id = ReferenceIds.TagTypes.Diet, Name = "Diet" },
     ];
 
-    // Отдельные константы на каждый тег не нужны: код на конкретные теги не завязан.
+    // Отдельные константы на каждый тег не нужны: бэкенд на конкретные теги не завязан.
+    // Но PWA группирует рецепты по Id тегов MealType (web/src/entities/recipe/lib/mealGroups.ts) — их Id не менять.
     public static readonly Tag[] Tags = BuildTags(
         (ReferenceIds.TagTypes.MealType, ["Завтрак", "Обед", "Ужин", "Перекус", "Десерт"]),
         (ReferenceIds.TagTypes.Cuisine, ["Русская", "Итальянская", "Азиатская", "Кавказская", "Средиземноморская"]),

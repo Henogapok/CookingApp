@@ -4,6 +4,7 @@ using Cooking.Domain.Entities.Ingredients;
 using Cooking.Domain.Entities.Recipes;
 using Cooking.Domain.Entities.Tags;
 using Cooking.Domain.Entities.Users;
+using Cooking.Domain.ReferenceData;
 using Cooking.Infrastructure.Persistence;
 using Cooking.Infrastructure.Repositories;
 using FluentResults;
@@ -42,7 +43,8 @@ public class RecipeRepositoryServiceTests
 
         var sourceType = new SourceType { Name = "Manual" };
         var complexity = new Complexity { Name = "Easy" };
-        var gram = new MeasurementUnit { Name = "Грамм", Abbreviation = "г" };
+        // Id из ReferenceIds: по нему NutritionCalculator узнаёт граммы.
+        var gram = new MeasurementUnit { Id = ReferenceIds.MeasurementUnits.Gram, Name = "Грамм", Abbreviation = "г" };
         var piece = new MeasurementUnit { Name = "Штука", Abbreviation = "шт" };
         var category = new IngredientCategory { Name = "Птица" };
         var dataSource = new DataSource { Name = "Manual" };
@@ -223,6 +225,26 @@ public class RecipeRepositoryServiceTests
         var result = await repository.GetAllAsync(s.AuthorId, "  КУРИЦА ", CancellationToken.None);
 
         Assert.Equal("Курица с рисом", Assert.Single(result.Value).Title);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ReturnsTagsAndNutritionPerServing()
+    {
+        await using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var chicken = await context.IngredientCatalog.SingleAsync(i => i.Id == s.ChickenId);
+        chicken.CaloriesPer100g = 110;
+        chicken.ProteinPer100g = 23;
+        await context.SaveChangesAsync(CancellationToken.None);
+        var repository = new RecipeRepositoryService(context);
+        await repository.CreateAsync(s.AuthorId, Fields(s), CancellationToken.None);
+
+        var recipe = Assert.Single((await repository.GetAllAsync(s.AuthorId, null, CancellationToken.None)).Value);
+
+        Assert.Equal(["Азиатская", "Ужин"], recipe.Tags.Select(t => t.Name));
+        // 300 г курицы на 2 порции: 330 ккал и 69 г белка на всё блюдо.
+        Assert.Equal(165, recipe.NutritionPerServing!.Calories);
+        Assert.Equal(34.5m, recipe.NutritionPerServing.Protein);
     }
 
     [Fact]
