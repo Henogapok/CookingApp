@@ -1,0 +1,58 @@
+.bar {
+  --ease: 0.2s ease;
+
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: calc(52px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 12px 0 4px;
+  background: var(--top-bg);
+  color: var(--top-text);
+  transition: box-shadow var(--ease);
+}
+
+.scrolled {
+  box-shadow: var(--top-shadow);
+}
+
+/* Вся надпись «‹ Рецепты» — одна большая цель для пальца (44px в высоту). */
+.back {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 44px;
+  padding: 0 8px 0 4px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.back:active {
+  background: var(--chip-bg);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity var(--ease), transform var(--ease);
+}
+
+.scrolled .title {
+  opacity: 1;
+  transform: none;
+}

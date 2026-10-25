@@ -2,9 +2,9 @@ import type { RecipeSummary } from '../model/types';
 import styles from './RecipeThumb.module.css';
 
 interface RecipeThumbProps {
-  recipe: RecipeSummary;
-  /** row — квадрат в строке списка, tile — широкая картинка в карточке витрины. */
-  variant: 'row' | 'tile';
+  recipe: Pick<RecipeSummary, 'id' | 'title'>;
+  /** row — квадрат в строке списка, tile — картинка в карточке витрины, cover — обложка страницы рецепта. */
+  variant: 'row' | 'tile' | 'cover';
   /** Что-то поверх картинки (например, плашка со временем). */
   badge?: string;
 }

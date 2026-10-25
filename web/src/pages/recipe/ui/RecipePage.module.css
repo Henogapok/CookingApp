@@ -1,0 +1,87 @@
+.page {
+  position: relative;
+  max-width: 1100px;
+  min-height: 100dvh;
+  margin: 0 auto;
+}
+
+.cover {
+  height: 220px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 20px calc(32px + env(safe-area-inset-bottom));
+}
+
+.columns,
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.status {
+  padding: 96px 20px 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Компьютер: обложка со скруглениями и отступом, ингредиенты слева, шаги справа. */
+@media (min-width: 900px) {
+  .page {
+    padding: 24px 40px 0;
+  }
+
+  /* «← Все рецепты» над обложкой — как хлебная крошка, не поверх фото. */
+  .backLink {
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    margin-bottom: 12px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .backLink:hover {
+    color: var(--text);
+  }
+
+  .cover {
+    height: 280px;
+    overflow: hidden;
+    border-radius: 24px;
+  }
+
+  .body {
+    padding: 28px 0 48px;
+  }
+
+  .columns {
+    display: grid;
+    grid-template-columns: 380px minmax(0, 1fr);
+    align-items: start;
+    gap: 32px;
+  }
+}

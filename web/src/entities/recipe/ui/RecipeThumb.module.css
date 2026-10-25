@@ -18,13 +18,21 @@
   border-radius: 18px;
 }
 
+.cover {
+  height: 100%;
+}
+
 .letter {
   font-size: 28px;
   font-weight: 800;
   opacity: 0.6;
 }
 
-.tile .letter {
+.tile .cover {
+  height: 100%;
+}
+
+.letter {
   font-size: 48px;
 }
 

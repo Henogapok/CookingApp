@@ -41,3 +41,20 @@ export function formatRecipeMeta(recipe: RecipeSummary): string {
     .filter(Boolean)
     .join(' · ');
 }
+
+/** 300 → «300», 1.5 → «1,5», 0.333 → «0,3»: до 10 — с одной десятой, дальше целые. */
+export function formatAmount(amount: number): string {
+  const rounded = amount >= 10 ? Math.round(amount) : Math.round(amount * 10) / 10;
+  return rounded.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+}
+
+/** 1250.4 → «1 250 ₸». */
+export function formatCost(tenge: number): string {
+  return `${Math.round(tenge).toLocaleString('ru-RU')} ₸`;
+}
+
+/** Таймер шага: 45 → «45 сек», 900 → «15 мин», 5400 → «1 ч 30 мин». */
+export function formatTimer(seconds: number): string {
+  if (seconds < 60) return `${seconds} сек`;
+  return formatMinutes(Math.round(seconds / 60));
+}

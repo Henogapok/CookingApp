@@ -1,91 +1,17 @@
 /*
- * Содержимое — колонкой не шире 1200px по центру; цветная полоса — во всю ширину и прилипает к верху.
- * Сворачивание как на телефоне: полоса 254px → 80px (строка логотипа), а отступ над полками растёт
- * на те же 174px (--collapse), чтобы высота страницы не менялась.
- *
- * Развёрнуто: строка логотипа 80 + заголовок 64 + зазор 18 + поиск 64 + низ 28 = 254.
- * Свёрнуто:  80 + 0 − 64 (поиск поднимается в строку логотипа) + поиск 48 + низ 16 = 80.
+ * Шапка — общий DesktopHeader (widgets/app-header). Свёрнутая она на 174px ниже (254 → 80),
+ * поэтому отступ над полками растёт ровно на столько же: высота страницы не меняется.
  */
 .page {
   --ease: 0.25s ease;
   --collapse: 174px;
 }
 
-.band {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding-bottom: 28px;
-  border-radius: 0 0 36px 36px;
-  background: var(--top-bg);
-  color: var(--top-text);
-  transition: padding var(--ease), border-radius var(--ease), box-shadow var(--ease);
-}
-
-.bandInner,
 .content {
   max-width: 1200px;
   margin: 0 auto;
   padding-left: 40px;
   padding-right: 40px;
-}
-
-.bandInner {
-  position: relative;
-  padding-top: 80px;
-}
-
-.logo {
-  position: absolute;
-  top: 0;
-  left: 40px;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-
-.avatar {
-  position: absolute;
-  top: 18px;
-  right: 40px;
-}
-
-.title {
-  height: 64px;
-  margin: 0;
-  overflow: hidden;
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 64px;
-  transition: height var(--ease), opacity var(--ease);
-}
-
-/* Свёрнуто: слева место под логотип, справа — под профиль (44 + 20px). */
-.search {
-  display: flex;
-  margin-top: 18px;
-  transition: margin var(--ease), padding var(--ease);
-}
-
-.collapsed .band {
-  padding-bottom: 16px;
-  border-radius: 0;
-  box-shadow: var(--top-shadow);
-}
-
-.collapsed .title {
-  height: 0;
-  opacity: 0;
-}
-
-.collapsed .search {
-  margin-top: -64px;
-  padding-left: 140px;
-  padding-right: 64px;
 }
 
 .collapsed .content {

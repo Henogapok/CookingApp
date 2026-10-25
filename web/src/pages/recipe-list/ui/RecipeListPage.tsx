@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router';
 import { isInMealGroup, mealGroups, recipeListQuery, type MealGroupId } from '@/entities/recipe';
 import { getErrorMessage } from '@/shared/api';
+import { useMediaQuery } from '@/shared/lib';
 import { searchRecipes } from '../lib/searchRecipes';
-import { useMediaQuery } from '../lib/useMediaQuery';
 import { DesktopShowcase } from './DesktopShowcase';
 import { MobileRecipeList } from './MobileRecipeList';
 import styles from './RecipeListPage.module.css';
@@ -18,8 +19,24 @@ interface RecipeListPageProps {
  * Данные и фильтры живут здесь, а как их показать, решают раскладки: телефон или витрина на компьютере.
  */
 export function RecipeListPage({ userName, onSignOut }: RecipeListPageProps) {
-  const [query, setQuery] = useState('');
-  const [group, setGroup] = useState<MealGroupId | 'all'>('all');
+  // Поиск и группа — в адресе (?q=борщ&group=dinner), а не в useState: вернулся из рецепта «назад» —
+  // фильтры на месте, и ссылкой можно поделиться. Поиск заменяет запись в истории (иначе каждый символ —
+  // отдельный шаг «назад»), а смена группы добавляет: «назад» из открытой полки возвращает к витрине.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get('q') ?? '';
+  const groupParam = searchParams.get('group');
+  const group: MealGroupId | 'all' = mealGroups.some((g) => g.id === groupParam) ? (groupParam as MealGroupId) : 'all';
+
+  const updateParams = (name: 'q' | 'group', value: string) =>
+    setSearchParams(
+      (params) => {
+        if (value === '' || value === 'all') params.delete(name);
+        else params.set(name, value);
+        return params;
+      },
+      { replace: name === 'q' },
+    );
+
   const isDesktop = useMediaQuery('(min-width: 900px)');
 
   // Загрузку, ошибку, повторы и кэш ведёт TanStack Query. Список обновляется сам в фоне: при открытии экрана,
@@ -64,9 +81,9 @@ export function RecipeListPage({ userName, onSignOut }: RecipeListPageProps) {
     userName,
     onSignOut,
     query,
-    onQueryChange: setQuery,
+    onQueryChange: (value: string) => updateParams('q', value),
     group,
-    onGroupChange: setGroup,
+    onGroupChange: (value: MealGroupId | 'all') => updateParams('group', value),
     recipes: found,
     status,
   };

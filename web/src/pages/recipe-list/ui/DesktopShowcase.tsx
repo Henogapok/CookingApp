@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { RecipeTile, type MealGroup, type MealGroupId, type RecipeSummary } from '@/entities/recipe';
-import { ProfileButton, ProfileMenu } from './ProfileMenu';
-import { useCollapseOnScroll } from '../lib/useCollapseOnScroll';
+import { useCollapseOnScroll } from '@/shared/lib';
+import { DesktopHeader } from '@/widgets/app-header';
 import { RecipeSearchInput } from './RecipeSearchInput';
 import styles from './DesktopShowcase.module.css';
 
@@ -41,7 +41,6 @@ export function DesktopShowcase({
   status,
 }: DesktopShowcaseProps) {
   const collapsed = useCollapseOnScroll();
-  const [menuOpen, setMenuOpen] = useState(false);
   const isSearching = query.trim() !== '';
   const openedGroup = shelves.find((shelf) => shelf.group.id === group)?.group;
 
@@ -91,25 +90,11 @@ export function DesktopShowcase({
 
   return (
     <div className={collapsed ? `${styles.page} ${styles.collapsed}` : styles.page}>
-      <header className={styles.band}>
-        <div className={styles.bandInner}>
-          <span className={styles.logo}>Cooking</span>
-          <ProfileButton userName={userName} onClick={() => setMenuOpen(true)} className={styles.avatar} />
-          <h1 className={styles.title} inert={collapsed}>
-            Что готовим сегодня?
-          </h1>
-          {/* Свёрнуто — заголовок исчезает, а поиск поднимается в строку логотипа, между ним и профилем. */}
-          <div className={styles.search}>
-            <RecipeSearchInput value={query} onChange={onQueryChange} size={collapsed ? 'normal' : 'large'} />
-          </div>
-        </div>
-      </header>
+      <DesktopHeader userName={userName} onSignOut={onSignOut} collapsed={collapsed} title="Что готовим сегодня?">
+        <RecipeSearchInput value={query} onChange={onQueryChange} size={collapsed ? 'normal' : 'large'} />
+      </DesktopHeader>
 
       <main className={styles.content}>{content}</main>
-
-      {menuOpen && (
-        <ProfileMenu variant="popover" userName={userName} onSignOut={onSignOut} onClose={() => setMenuOpen(false)} />
-      )}
     </div>
   );
 }

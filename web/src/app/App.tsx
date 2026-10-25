@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { useAuth } from 'react-oidc-context';
-import { RecipeListPage } from '@/pages/recipe-list';
 import { SignInPage } from '@/pages/sign-in';
+import { AppRouter } from './router/AppRouter';
 import styles from './App.module.css';
 
-/** Корневой компонент: не вошёл — экран входа, вошёл — текущий экран. Экранов пока один; позже здесь будет роутер. */
+/** Корневой компонент: не вошёл — экран входа, вошёл — экраны приложения (роутер). */
 export function App() {
   const auth = useAuth();
   const { events, removeUser } = auth;
@@ -18,15 +18,15 @@ export function App() {
   }
 
   if (!auth.isAuthenticated) {
-    return <SignInPage hasError={auth.error !== undefined} onSignIn={() => void auth.signinRedirect()} />;
+    // state вернётся после входа: AuthProvider откроет страницу, с которой уходили (например, ссылку на рецепт).
+    const returnTo = window.location.pathname + window.location.search;
+    return (
+      <SignInPage
+        hasError={auth.error !== undefined}
+        onSignIn={() => void auth.signinRedirect({ state: returnTo })}
+      />
+    );
   }
 
-  const profile = auth.user?.profile;
-
-  return (
-    <RecipeListPage
-      userName={profile?.given_name ?? profile?.name ?? ''}
-      onSignOut={() => void auth.signoutRedirect()}
-    />
-  );
+  return <AppRouter />;
 }

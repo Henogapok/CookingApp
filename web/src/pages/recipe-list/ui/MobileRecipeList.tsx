@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { mealGroups, RecipeCard, type MealGroupId, type RecipeSummary } from '@/entities/recipe';
-import { useCollapseOnScroll } from '../lib/useCollapseOnScroll';
-import { ProfileButton, ProfileMenu } from './ProfileMenu';
+import { useCollapseOnScroll } from '@/shared/lib';
+import { ProfileButton, ProfileMenu } from '@/widgets/app-header';
 import { RecipeSearchInput } from './RecipeSearchInput';
 import styles from './MobileRecipeList.module.css';
 

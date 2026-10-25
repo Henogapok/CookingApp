@@ -16,7 +16,8 @@
     "oidc-client-ts": "^3.5.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-oidc-context": "^3.3.1"
+    "react-oidc-context": "^3.3.1",
+    "react-router": "^7.18.4"
   },
   "devDependencies": {
     "@feature-sliced/steiger-plugin": "^0.8.0",

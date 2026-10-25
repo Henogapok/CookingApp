@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»): вход через Auth, список рецептов из Api (загружается целиком, поиск на клиенте).
+Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»): вход через Auth, список рецептов (загружается целиком, поиск и группы на клиенте) и страница рецепта с пересчётом порций, 4 темы.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -522,12 +522,12 @@ React 19 + TypeScript + Vite, папка `web/` в корне (не в `src/` �
 ```
 web/src/
 ├── main.tsx      точка входа
-├── app/          запуск: App (не вошёл → pages/sign-in), auth/ (вход через Cooking.Auth), query/ (кэш TanStack Query), styles/global.css; позже роутер
-├── pages/        экраны под маршруты; собирают блоки нижних слоёв (сейчас recipe-list)
-├── widgets/      (когда понадобится) крупные блоки из нескольких фич
+├── app/          запуск: App (не вошёл → pages/sign-in), auth/ (вход через Cooking.Auth), query/ (кэш TanStack Query), router/ (React Router), styles/global.css
+├── pages/        экраны под маршруты; собирают блоки нижних слоёв (recipe-list, recipe, sign-in)
+├── widgets/      крупные блоки для нескольких экранов: app-header (шапка компьютерной версии, меню профиля с выбором темы)
 ├── features/     (когда понадобится) действия пользователя: свайп, в корзину, пересчёт порций, вход
 ├── entities/     бизнес-сущности: тип, запросы к Api, отображение (сейчас recipe)
-└── shared/       без бизнес-логики: api/ (http-клиент), позже UI-кит, утилиты
+└── shared/       без бизнес-логики: api/ (http-клиент), config/ (адреса экранов), lib/ (тема, useMediaQuery), позже UI-кит
 ```
 
 - Слайс (`entities/recipe`, `pages/recipe-list`) делится на сегменты `ui/`, `model/` (типы, состояние), `api/`, `lib/` (чистые функции + тесты рядом).
@@ -536,6 +536,8 @@ web/src/
 - Слои и сегменты заводим, когда появился код, пустые папки «на будущее» не создаём.
 - Стили — CSS Modules (`Компонент.module.css` рядом с компонентом); глобально — только переменные цветов и базовые правила (`app/styles/global.css`).
 - Экран «Рецепты» (`pages/recipe-list`): данные и фильтры — в `RecipeListPage`, раскладки — `MobileRecipeList` (телефон: цветная шапка сворачивается при прокрутке до поиска и профиля, чипы-фильтры) и `DesktopShowcase` (от 900px, «витрина»: полки по группам, «Все →» и поиск — сетка). Группы — по тегам MealType: Завтрак, Обед, Ужин, Перекус и «Другое» (без этих тегов, в том числе «Десерт»); рецепт с несколькими тегами — в нескольких группах. Группируем по Id тегов из seed (`entities/recipe/lib/mealGroups.ts`), не по именам. Отступы под вырез iPhone — `env(safe-area-inset-*)` (`viewport-fit=cover`); шрифт Manrope — пакетом `@fontsource-variable/manrope` (работает офлайн).
+- Маршруты — React Router 7 (data router, `app/router/AppRouter.tsx`): `/` — список, `/recipes/:id` — рецепт; адреса — только через `routes` из `@/shared/config`. Роутер создаётся после входа: `AuthProvider` к этому моменту убрал `?code=…` и вернул страницу, с которой уходили на вход (`signinRedirect({ state })`). `ScrollRestoration`: новый экран — сверху, «назад» — прежняя прокрутка. Фильтры списка — в адресе (`?q=`, `?group=`), а не в state. В проде Caddy должен отдавать `index.html` на любой путь PWA (SPA fallback), иначе обновление `/recipes/…` даст 404.
+- Страница рецепта (`pages/recipe`): порции пересчитываются на клиенте (количества и стоимость × выбранные / базовые порции; КБЖУ на порцию не меняется); без `Servings` пересчёта нет и КБЖУ — на всё блюдо.
 - Темы: 4 штуки — светлые «Шалфей» (`sage`, по умолчанию, цветная шапка) и «Сливки» (`cream`), тёмные «Полночь» (`midnight`, по умолчанию) и «Графит» (`graphite`); макеты — артефакт «Макеты Cooking». Тема — набор CSS-переменных в `[data-theme="…"]`, переключается атрибутом на `<html>`. Компоненты используют только токены (`var(--bg)`, `var(--accent)`…), конкретных цветов в модулях нет — иначе одна из тем сломается. Новая тема — только по запросу. Выбор «Авто» (по умолчанию) — светлая/тёмная по `prefers-color-scheme`.
 - Выбор темы хранится в двух местах: `localStorage` (применяется до первой отрисовки, без мигания) и в профиле на сервере (`User.Theme`, null = «Авто»), чтобы тема совпадала на телефоне и компьютере; при входе серверное значение перезаписывает локальное. Сейчас сделана локальная часть: `shared/lib/theme.ts` (выбор, «Авто», `useThemeChoice`) + скрипт в `web/index.html`, который ставит тему до загрузки приложения (ключ `cooking.theme` и правила в двух местах — менять вместе); выбор — в меню профиля (`ThemePicker`). `User.Theme` на сервере — следующим шагом.
 - Типы ответов Api повторяют C#-DTO в camelCase (`Guid` → `string`, `int?` → `number | null`).
