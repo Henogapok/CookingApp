@@ -20,7 +20,7 @@ interface MobileRecipeListProps {
 
 const groupChips: { id: MealGroupId | 'all'; title: string }[] = [{ id: 'all', title: 'Все' }, ...mealGroups];
 
-/** Телефон: цветная шапка (заголовок, поиск, фильтр по приёму пищи) сворачивается при прокрутке до поиска и профиля. */
+/** Телефон: цветная шапка (заголовок, поиск, фильтр по приёму пищи); при прокрутке заголовок прячется, поиск, профиль и фильтр остаются. */
 export function MobileRecipeList({
   userName,
   onSignOut,
@@ -60,7 +60,7 @@ export function MobileRecipeList({
         </div>
         {/* Кнопка одна и почти не двигается: при сворачивании заголовок исчезает, поиск поднимается к ней и сужается. */}
         <ProfileButton userName={userName} onClick={() => setMenuOpen(true)} className={styles.avatar} />
-        <div className={styles.chips} role="group" aria-label="Приём пищи" inert={collapsed}>
+        <div className={styles.chips} role="group" aria-label="Приём пищи">
           {groupChips.map((chip) => (
             <button
               key={chip.id}

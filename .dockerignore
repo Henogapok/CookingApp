@@ -11,3 +11,5 @@ deploy/
 src/Screens/
 docker-compose.yml
 *.md
+web/node_modules/
+web/dist/

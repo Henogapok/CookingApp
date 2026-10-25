@@ -1,19 +1,23 @@
 /*
- * Сворачивание: строка заголовка (60px) и чипы (44 + 12px) схлопываются до 0, а отступ над списком
- * растёт ровно на столько же (--collapse). Высота страницы не меняется — иначе на коротком списке
- * прокрутка упиралась бы в верх, шапка разворачивалась, и так по кругу.
+ * Шапка прибита к экрану (fixed), под ней — постоянный отступ на высоту развёрнутой шапки (--header-height):
+ * safe area + заголовок 60 + поиск 48 + 12 + чипы 44 + низ 14 = 178px. При прокрутке строка заголовка
+ * сжимается до 12px (зазор над поиском), шапка становится ниже и просто лежит поверх списка — страница
+ * при этом не сдвигается. (Раньше шапка была sticky с компенсацией отступом, и при быстрой прокрутке
+ * над ней мог мелькнуть список.)
  */
 .page {
   --ease: 0.25s ease;
-  --collapse: 116px;
   --safe-top: env(safe-area-inset-top);
+  --header-height: calc(var(--safe-top) + 178px);
 
   min-height: 100dvh;
 }
 
 .header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 1;
   padding: var(--safe-top) 0 14px;
   border-radius: 0 0 28px 28px;
@@ -45,7 +49,7 @@
   transition: padding var(--ease);
 }
 
-/* По центру строки заголовка ((60 - 44) / 2); свёрнуто — по центру поля поиска ((48 - 44) / 2). */
+/* По центру строки заголовка ((60 - 44) / 2); свёрнуто — по центру поля поиска: 12 + (48 - 44) / 2 = 14, сдвиг +6. */
 .avatar {
   position: absolute;
   top: calc(var(--safe-top) + 8px);
@@ -88,8 +92,7 @@
 }
 
 .content {
-  padding: 14px 20px calc(20px + env(safe-area-inset-bottom));
-  transition: padding-top var(--ease);
+  padding: calc(var(--header-height) + 14px) 20px calc(20px + env(safe-area-inset-bottom));
 }
 
 /* Свёрнутая шапка — ровная полоса, закругления только у развёрнутой. */
@@ -99,7 +102,7 @@
 }
 
 .collapsed .titleRow {
-  height: 0;
+  height: 12px;
   opacity: 0;
 }
 
@@ -108,17 +111,7 @@
 }
 
 .collapsed .avatar {
-  transform: translateY(-6px);
-}
-
-.collapsed .chips {
-  height: 0;
-  margin-top: 0;
-  opacity: 0;
-}
-
-.collapsed .content {
-  padding-top: calc(14px + var(--collapse));
+  transform: translateY(6px);
 }
 
 .list {
