@@ -19,6 +19,8 @@
   --top-muted: #bfd3c4;
   --search-bg: #f8faf5;
   --search-border: #2f5d43;
+  /* Тень свёрнутой шапки: объём при прокрутке. */
+  --top-shadow: 0 6px 18px rgb(0 0 0 / 16%), 0 1px 3px rgb(0 0 0 / 10%);
 
   /* Фильтры-чипы на шапке; выбранный — светлый на зелёном. */
   --chip-bg: rgb(255 255 255 / 12%);
@@ -36,6 +38,106 @@
   --tint-6: #d8dce6;
 
   color-scheme: light;
+}
+
+/* У остальных тем шапка тоновая — чуть темнее фона (светлые) или светлее (тёмные), чтобы при прокрутке не сливалась с ним. */
+[data-theme='cream'] {
+  --bg: #f8f0e3;
+  --card: #fffaf2;
+  --text: #3b2618;
+  --muted: #8a6f5a;
+  --border: #e8d8c3;
+  --accent: #b8461b;
+  --on-accent: #fff8ee;
+
+  --top-bg: #efe1cb;
+  --top-text: var(--text);
+  --top-muted: var(--muted);
+  --search-bg: var(--card);
+  --search-border: #e0caa9;
+  /* Тень свёрнутой шапки: объём при прокрутке. */
+  --top-shadow: 0 6px 18px rgb(0 0 0 / 16%), 0 1px 3px rgb(0 0 0 / 10%);
+
+  --chip-bg: var(--card);
+  --chip-border: #e0caa9;
+  --chip-text: var(--text);
+  --chip-selected-bg: #b8461b;
+  --chip-selected-text: #fff8ee;
+
+  --tint-1: #f1d9bf;
+  --tint-2: #efcdb8;
+  --tint-3: #e9ddb2;
+  --tint-4: #e8c9c0;
+  --tint-5: #dce0c0;
+  --tint-6: #d9d3c5;
+
+  color-scheme: light;
+}
+
+[data-theme='midnight'] {
+  --bg: #0d1020;
+  --card: #161a2e;
+  --text: #e7e9f7;
+  --muted: #8d93b3;
+  --border: #262b47;
+  --accent: #a5b4fc;
+  --on-accent: #0d1020;
+
+  --top-bg: #1a1f3b;
+  --top-text: var(--text);
+  --top-muted: var(--muted);
+  --search-bg: var(--card);
+  --search-border: #2f3558;
+  /* На тёмном фоне тень нужна плотнее, чтобы быть заметной. */
+  --top-shadow: 0 8px 24px rgb(0 0 0 / 70%), 0 2px 4px rgb(0 0 0 / 50%);
+
+  --chip-bg: var(--card);
+  --chip-border: #2f3558;
+  --chip-text: var(--text);
+  --chip-selected-bg: #a5b4fc;
+  --chip-selected-text: #0d1020;
+
+  --tint-1: #232a4a;
+  --tint-2: #2e2547;
+  --tint-3: #1f3343;
+  --tint-4: #3a2840;
+  --tint-5: #24363a;
+  --tint-6: #2b2f45;
+
+  color-scheme: dark;
+}
+
+[data-theme='graphite'] {
+  --bg: #121110;
+  --card: #1e1d1b;
+  --text: #f2efea;
+  --muted: #a39d93;
+  --border: #33302c;
+  --accent: #a5b4fc;
+  --on-accent: #121110;
+
+  --top-bg: #282624;
+  --top-text: var(--text);
+  --top-muted: var(--muted);
+  --search-bg: var(--card);
+  --search-border: #3d3a35;
+  /* На тёмном фоне тень нужна плотнее, чтобы быть заметной. */
+  --top-shadow: 0 8px 24px rgb(0 0 0 / 70%), 0 2px 4px rgb(0 0 0 / 50%);
+
+  --chip-bg: var(--card);
+  --chip-border: #3d3a35;
+  --chip-text: var(--text);
+  --chip-selected-bg: #f2efea;
+  --chip-selected-text: #121110;
+
+  --tint-1: #3b2f26;
+  --tint-2: #3b2b29;
+  --tint-3: #3a3424;
+  --tint-4: #3a2a2d;
+  --tint-5: #2c3326;
+  --tint-6: #2a2d36;
+
+  color-scheme: dark;
 }
 
 :root {

@@ -19,7 +19,7 @@
   border-radius: 0 0 36px 36px;
   background: var(--top-bg);
   color: var(--top-text);
-  transition: padding var(--ease), border-radius var(--ease);
+  transition: padding var(--ease), border-radius var(--ease), box-shadow var(--ease);
 }
 
 .bandInner,
@@ -74,6 +74,7 @@
 .collapsed .band {
   padding-bottom: 16px;
   border-radius: 0;
+  box-shadow: var(--top-shadow);
 }
 
 .collapsed .title {

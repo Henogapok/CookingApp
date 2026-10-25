@@ -1,3 +1,4 @@
+import { ThemePicker } from './ThemePicker';
 import styles from './ProfileMenu.module.css';
 
 interface ProfileButtonProps {
@@ -28,7 +29,7 @@ interface ProfileMenuProps {
   variant: 'sheet' | 'popover';
 }
 
-/** Меню профиля: кто вошёл и «Выйти». Сюда же переедет выбор темы. */
+/** Меню профиля: кто вошёл, выбор темы и «Выйти». */
 export function ProfileMenu({ userName, onSignOut, onClose, variant }: ProfileMenuProps) {
   return (
     <div className={`${styles.overlay} ${styles[variant]}`}>
@@ -36,6 +37,7 @@ export function ProfileMenu({ userName, onSignOut, onClose, variant }: ProfileMe
       <button type="button" className={styles.backdrop} aria-label="Закрыть" onClick={onClose} />
       <section className={styles.menu} role="dialog" aria-label="Профиль">
         <p className={styles.name}>{userName}</p>
+        <ThemePicker />
         <button type="button" className={styles.signOut} onClick={onSignOut}>
           Выйти
         </button>

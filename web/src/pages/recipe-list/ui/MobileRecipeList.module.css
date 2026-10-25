@@ -19,7 +19,7 @@
   border-radius: 0 0 28px 28px;
   background: var(--top-bg);
   color: var(--top-text);
-  transition: border-radius var(--ease);
+  transition: border-radius var(--ease), box-shadow var(--ease);
 }
 
 .titleRow {
@@ -61,6 +61,9 @@
   padding: 0 20px;
   overflow: auto hidden;
   scrollbar-width: none;
+  /* По краям чипы растворяются (20px — как отступ): при прокрутке не вылезают на закруглённые углы шапки
+     и видно, что ряд листается. В покое в этих 20px пусто, так что ничего не меняется. */
+  mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent);
   transition: height var(--ease), margin var(--ease), opacity var(--ease);
 }
 
@@ -92,6 +95,7 @@
 /* Свёрнутая шапка — ровная полоса, закругления только у развёрнутой. */
 .collapsed .header {
   border-radius: 0;
+  box-shadow: var(--top-shadow);
 }
 
 .collapsed .titleRow {
