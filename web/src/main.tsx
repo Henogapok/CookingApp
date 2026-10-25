@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
+import '@fontsource-variable/manrope'
 import './app/styles/global.css'
 import { App } from './app/App.tsx'
 import { AuthProvider } from './app/auth/AuthProvider.tsx'

@@ -1,0 +1,20 @@
+.macros {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Разделители «|» рисует CSS: в тексте для скринридера их нет. */
+.macros > * + *::before {
+  content: '|';
+  margin: 0 6px;
+  font-weight: 400;
+  color: var(--border);
+}
+
+.calories {
+  font-weight: 800;
+  color: var(--accent);
+}

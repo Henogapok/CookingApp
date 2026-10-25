@@ -1,5 +1,7 @@
 import type { RecipeSummary } from '../model/types';
-import { formatComplexity, formatMinutes } from '../lib/format';
+import { formatRecipeMeta } from '../lib/format';
+import { RecipeMacros } from './RecipeMacros';
+import { RecipeThumb } from './RecipeThumb';
 import styles from './RecipeCard.module.css';
 
 // Props компонента: что ему передаёт родитель. Сам компонент их не меняет.
@@ -7,21 +9,16 @@ interface RecipeCardProps {
   recipe: RecipeSummary;
 }
 
-/** Одна строка списка рецептов. */
+/** Строка списка рецептов (телефон): фото слева, название, «сложность · время · порции», КБЖУ на порцию. */
 export function RecipeCard({ recipe }: RecipeCardProps) {
   return (
     <li className={styles.card}>
-      <h2 className={styles.title}>{recipe.title}</h2>
-      <p className={styles.meta}>
-        <span>{formatComplexity(recipe.complexityName)}</span>
-        {/* Время и порции показываем, только если они известны: null → ничего не рисуем. */}
-        {recipe.cookingTimeMinutes !== null && <span>{formatMinutes(recipe.cookingTimeMinutes)}</span>}
-        {recipe.servings !== null && <span>{recipe.servings} порц.</span>}
-        {recipe.nutritionPerServing !== null && (
-          <span>{Math.round(recipe.nutritionPerServing.calories)} ккал/порц.</span>
-        )}
-        <span>{recipe.createdByFirstName}</span>
-      </p>
+      <RecipeThumb recipe={recipe} variant="row" />
+      <div className={styles.body}>
+        <h2 className={styles.title}>{recipe.title}</h2>
+        <p className={styles.meta}>{formatRecipeMeta(recipe)}</p>
+        <RecipeMacros nutrition={recipe.nutritionPerServing} />
+      </div>
     </li>
   );
 }

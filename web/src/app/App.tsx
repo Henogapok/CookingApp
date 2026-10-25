@@ -4,7 +4,7 @@ import { RecipeListPage } from '@/pages/recipe-list';
 import { SignInPage } from '@/pages/sign-in';
 import styles from './App.module.css';
 
-/** Корневой компонент: не вошёл — экран входа, вошёл — шапка + текущий экран. Экранов пока один; позже здесь будет роутер. */
+/** Корневой компонент: не вошёл — экран входа, вошёл — текущий экран. Экранов пока один; позже здесь будет роутер. */
 export function App() {
   const auth = useAuth();
   const { events, removeUser } = auth;
@@ -24,19 +24,9 @@ export function App() {
   const profile = auth.user?.profile;
 
   return (
-    <>
-      <header className={styles.header}>
-        <h1>🍳 Cooking</h1>
-        <div className={styles.user}>
-          <span>{profile?.given_name ?? profile?.name}</span>
-          <button type="button" className={styles.signOut} onClick={() => void auth.signoutRedirect()}>
-            Выйти
-          </button>
-        </div>
-      </header>
-      <main className={styles.content}>
-        <RecipeListPage />
-      </main>
-    </>
+    <RecipeListPage
+      userName={profile?.given_name ?? profile?.name ?? ''}
+      onSignOut={() => void auth.signoutRedirect()}
+    />
   );
 }

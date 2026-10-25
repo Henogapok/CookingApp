@@ -1,0 +1,41 @@
+.thumb {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.row {
+  width: 84px;
+  height: 84px;
+  border-radius: 12px;
+}
+
+.tile {
+  height: 170px;
+  border-radius: 18px;
+}
+
+.letter {
+  font-size: 28px;
+  font-weight: 800;
+  opacity: 0.6;
+}
+
+.tile .letter {
+  font-size: 48px;
+}
+
+.badge {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--card);
+  color: var(--text);
+}

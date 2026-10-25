@@ -1,22 +1,30 @@
 .card {
-  padding: 14px 16px;
+  display: flex;
+  gap: 14px;
+  padding: 12px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 18px;
   background: var(--card);
 }
 
-.title {
-  margin: 0 0 4px;
-  font-size: 17px;
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
 }
 
-/* «Легко · 25 мин · 2 порц.» — точки между элементами рисует CSS, а не код компонента. */
+.title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 .meta {
   margin: 0;
+  font-size: 13px;
   color: var(--muted);
-  font-size: 14px;
-}
-
-.meta span + span::before {
-  content: ' · ';
 }

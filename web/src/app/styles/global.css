@@ -1,26 +1,45 @@
-/* Глобальные стили (слой app): только переменные и базовые правила. Стили компонентов — в их *.module.css. */
+/* Глобальные стили (слой app): только переменные темы и базовые правила. Стили компонентов — в их *.module.css. */
 
-/* Цвета — переменными: тёмная тема меняет только их, остальные правила те же. */
-:root {
-  --bg: #f6f4ef;
-  --card: #ffffff;
-  --text: #1f1d1a;
-  --muted: #6b665e;
-  --border: #e4e0d8;
-  --accent: #2aabee;
+/*
+ * Тема — набор переменных в [data-theme] на <html>. Компоненты берут цвета только отсюда (var(--bg)…),
+ * поэтому новая тема — это новый блок переменных, без правок компонентов. Макеты — артефакт «Макеты Cooking».
+ */
+[data-theme='sage'] {
+  --bg: #e9eee4;
+  --card: #f8faf5;
+  --text: #1f2b21;
+  --muted: #66745f;
+  --border: #d3dccb;
+  --accent: #c0522b;
+  --on-accent: #ffffff;
 
-  color-scheme: light dark;
-  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Цветная шапка: свой фон, текст и поле поиска на нём. */
+  --top-bg: #2f5d43;
+  --top-text: #f1f5ee;
+  --top-muted: #bfd3c4;
+  --search-bg: #f8faf5;
+  --search-border: #2f5d43;
+
+  /* Фильтры-чипы на шапке; выбранный — светлый на зелёном. */
+  --chip-bg: rgb(255 255 255 / 12%);
+  --chip-border: rgb(255 255 255 / 38%);
+  --chip-text: #f1f5ee;
+  --chip-selected-bg: #f1f5ee;
+  --chip-selected-text: #2f5d43;
+
+  /* Подложки вместо фото, пока фото нет. */
+  --tint-1: #d5e0c9;
+  --tint-2: #e7d3c2;
+  --tint-3: #dde3c3;
+  --tint-4: #e5cfc7;
+  --tint-5: #c9d9cf;
+  --tint-6: #d8dce6;
+
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #171614;
-    --card: #22201d;
-    --text: #f1eee8;
-    --muted: #a39d93;
-    --border: #3a3631;
-  }
+:root {
+  font: 16px/1.5 'Manrope Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 * {
@@ -31,4 +50,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+}
+
+button,
+input {
+  font: inherit;
 }
