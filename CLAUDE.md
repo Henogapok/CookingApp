@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Готово: EF Core + миграции, КБЖУ и стоимость рецепта (`NutritionCalculator`), справочники с seed'ом, CRUD каталога ингредиентов, тегов, Family/User с приглашениями, Recipe CRUD (доступ по семье, soft delete), Telegram-бот (регистрация, семьи, список/поиск/карточка рецептов), LLM-разбор рецепта из текста (черновик → превью → подтверждение, см. «Разбор рецептов из текста»), Serilog/Seq, юнит-тесты (xUnit + EF InMemory) и CI. Каждая фича — `I<Feature>RepositoryService` в Application + реализация в `Infrastructure/Repositories`, MediatR-хендлеры тонкие, ошибки — `FluentResults` + `AppError(ErrorCode)` → HTTP-статус в `BaseController`.
 
-Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»).
+Авторизация — отдельный сервис `Cooking.Auth` (OAuth 2.0 / OpenID Connect, см. «Авторизация»): вход через бота и через Telegram Login Widget, JWT в Api, Swagger; Auth задеплоен на `auth.cocking.fyi`. PWA — начата (`web/`, см. «PWA (web/)»): вход через Auth, список рецептов пока на тестовых данных.
 
 Все проекты нацелены на **net8.0** (nullable + implicit usings включены).
 
@@ -510,7 +510,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Локально: сертификаты подписи — dev-сертификаты OpenIddict (хранилище пользователя Windows). Auth нужен токен того же dev-бота (для username в ссылке): `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Auth` (или `Telegram:BotUsername`). Api: `Auth:Authority = https://localhost:7271/`.
 - Прод: ключи подписи/шифрования — `.pfx` из `Auth:Certificates` (нет файла — Auth создаёт самоподписанный при старте; в проде на volume `auth_keys`), не заданы вне Development — Auth не стартует. Ключи Data Protection (cookie сессии) — в Postgres (`DataProtectionKeys`). За Caddy — `UseForwardedHeaders` (X-Forwarded-Proto), `Auth:Issuer = https://auth.cocking.fyi/`.
 - **Вход через Telegram Login Widget**: кнопка на `/login` (скрипт `telegram-widget.js`, username бота — из `GET /login/options`) → Telegram сам подтверждает пользователя и отдаёт странице подписанные данные → `POST /login/telegram` → `TelegramWidgetLoginService`: подпись проверяет `TelegramWidgetSignature` (HMAC-SHA256, ключ = SHA256(токен бота), `auth_date` не старше суток; покрыт тестами), пользователь регистрируется так же идемпотентно, как на `/start` (`RegisterAsync`) → сессия Auth. Виджет работает только на домене, привязанном к боту (`/setdomain` у прод-бота → `auth.cocking.fyi`), на localhost — нет, поэтому включается настройкой `Telegram:LoginWidgetEnabled` (только в проде); локально — вход через бота.
-- Этап 3 — PWA (`oidc-client-ts`).
+- **PWA** — клиент `cooking-pwa` (redirect `/auth/callback`, после выхода — `/`), библиотеки `oidc-client-ts` + `react-oidc-context` (`web/src/app/auth/`). Scope `openid profile offline_access cooking-api`; пользователь и токены — в `localStorage` (PWA на iPhone при каждом запуске — новая «вкладка»), access token обновляется по refresh-токену заранее (`automaticSilentRenew`); не обновился — пользователь забывается и видит экран входа. Адрес Auth — `VITE_AUTH_AUTHORITY` в `web/.env.*`. CORS Auth пускает origin'ы redirect URI клиентов: GET (discovery, jwks) и POST (`/connect/token`). Прод-адреса клиента добавим вместе с деплоем PWA.
 
 ## PWA (web/)
 
@@ -521,7 +521,7 @@ React 19 + TypeScript + Vite, папка `web/` в корне (не в `src/` �
 ```
 web/src/
 ├── main.tsx      точка входа
-├── app/          запуск: App, позже роутер и провайдеры (вход, кэш запросов); styles/global.css
+├── app/          запуск: App (не вошёл → pages/sign-in), auth/ (вход через Cooking.Auth), styles/global.css; позже роутер и кэш запросов
 ├── pages/        экраны под маршруты; собирают блоки нижних слоёв (сейчас recipe-list)
 ├── widgets/      (когда понадобится) крупные блоки из нескольких фич
 ├── features/     (когда понадобится) действия пользователя: свайп, в корзину, пересчёт порций, вход
@@ -534,6 +534,8 @@ web/src/
 - Код выносим в отдельный слайс, когда у него появился второй потребитель; до этого он живёт внутри страницы (Steiger `fsd/insignificant-slice`; для `entities` — только предупреждение, они заведомо общие).
 - Слои и сегменты заводим, когда появился код, пустые папки «на будущее» не создаём.
 - Стили — CSS Modules (`Компонент.module.css` рядом с компонентом); глобально — только переменные цветов и базовые правила (`app/styles/global.css`).
+- Темы: 4 штуки — светлые «Шалфей» (`sage`, по умолчанию, цветная шапка) и «Сливки» (`cream`), тёмные «Полночь» (`midnight`, по умолчанию) и «Графит» (`graphite`); макеты — артефакт «Макеты Cooking». Тема — набор CSS-переменных в `[data-theme="…"]`, переключается атрибутом на `<html>`. Компоненты используют только токены (`var(--bg)`, `var(--accent)`…), конкретных цветов в модулях нет — иначе одна из тем сломается. Новая тема — только по запросу. Выбор «Авто» (по умолчанию) — светлая/тёмная по `prefers-color-scheme`.
+- Выбор темы хранится в двух местах: `localStorage` (применяется до первой отрисовки, без мигания) и в профиле на сервере (`User.Theme`, null = «Авто»), чтобы тема совпадала на телефоне и компьютере; при входе серверное значение перезаписывает локальное.
 - Типы ответов Api повторяют C#-DTO в camelCase (`Guid` → `string`, `int?` → `number | null`).
 
 ## Docker (локальная разработка)

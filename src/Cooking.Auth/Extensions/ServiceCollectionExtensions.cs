@@ -150,7 +150,8 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Клиент меняет code на токены запросом из браузера (fetch на /connect/token) — с другого origin, поэтому нужен CORS.
+    /// Клиент ходит в Auth запросами из браузера — с другого origin, поэтому нужен CORS. GET — настройки и ключи
+    /// (/.well-known/openid-configuration и jwks, их читает oidc-client-ts в PWA), POST — обмен code и refresh-токена (/connect/token).
     /// Разрешаем ровно те origin'ы, куда зарегистрированы redirect URI клиентов.
     /// </summary>
     public static IServiceCollection AddClientsCors(this IServiceCollection services, AuthOptions options)
@@ -164,7 +165,7 @@ public static class ServiceCollectionExtensions
         services.AddCors(cors => cors.AddPolicy(ClientsCorsPolicy, policy => policy
             .WithOrigins(origins)
             .AllowAnyHeader()
-            .WithMethods("POST")));
+            .WithMethods("GET", "POST")));
 
         return services;
     }
