@@ -14,10 +14,10 @@ public class RecipeDraftsController : BaseController
     [HttpPost]
     public async Task<IActionResult> Create(CreateRecipeDraftRequest request, CancellationToken cancellationToken)
     {
-        var result = await Mediator.Send(new CreateRecipeDraftCommand(request.UserId, request.Text), cancellationToken);
+        var result = await Mediator.Send(new CreateRecipeDraftCommand(CurrentUserId, request.Text), cancellationToken);
 
         return result.IsSuccess
-            ? AcceptedAtAction(nameof(GetById), new { id = result.Value, userId = request.UserId }, result.Value)
+            ? AcceptedAtAction(nameof(GetById), new { id = result.Value }, result.Value)
             : HandleResult(result);
     }
 
@@ -25,21 +25,21 @@ public class RecipeDraftsController : BaseController
     [HttpPost("from-url")]
     public async Task<IActionResult> CreateFromUrl(CreateRecipeDraftFromUrlRequest request, CancellationToken cancellationToken)
     {
-        var result = await Mediator.Send(new CreateRecipeDraftFromUrlCommand(request.UserId, request.Url), cancellationToken);
+        var result = await Mediator.Send(new CreateRecipeDraftFromUrlCommand(CurrentUserId, request.Url), cancellationToken);
 
         return result.IsSuccess
-            ? AcceptedAtAction(nameof(GetById), new { id = result.Value, userId = request.UserId }, result.Value)
+            ? AcceptedAtAction(nameof(GetById), new { id = result.Value }, result.Value)
             : HandleResult(result);
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, [FromQuery] Guid userId, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new GetRecipeDraftQuery(id, userId), cancellationToken));
+    public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
+        => HandleResult(await Mediator.Send(new GetRecipeDraftQuery(id, CurrentUserId), cancellationToken));
 
     /// <summary>Подставить оценки ИИ для порций/времени, не указанных в тексте.</summary>
     [HttpPost("{id:guid}/estimates")]
-    public async Task<IActionResult> ApplyEstimates(Guid id, RecipeDraftActorRequest request, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new ApplyRecipeDraftEstimatesCommand(id, request.UserId), cancellationToken));
+    public async Task<IActionResult> ApplyEstimates(Guid id, CancellationToken cancellationToken)
+        => HandleResult(await Mediator.Send(new ApplyRecipeDraftEstimatesCommand(id, CurrentUserId), cancellationToken));
 
     /// <summary>
     /// Правка своими словами («лука не надо, порций 4»). Применяется в фоне: 202, затем GET отдаёт новую версию
@@ -48,10 +48,10 @@ public class RecipeDraftsController : BaseController
     [HttpPost("{id:guid}/corrections")]
     public async Task<IActionResult> Correct(Guid id, CorrectRecipeDraftRequest request, CancellationToken cancellationToken)
     {
-        var result = await Mediator.Send(new CorrectRecipeDraftCommand(id, request.UserId, request.Text), cancellationToken);
+        var result = await Mediator.Send(new CorrectRecipeDraftCommand(id, CurrentUserId, request.Text), cancellationToken);
 
         return result.IsSuccess
-            ? AcceptedAtAction(nameof(GetById), new { id, userId = request.UserId }, null)
+            ? AcceptedAtAction(nameof(GetById), new { id }, null)
             : HandleResult(result);
     }
 
@@ -62,19 +62,19 @@ public class RecipeDraftsController : BaseController
     [HttpPost("{id:guid}/dishes")]
     public async Task<IActionResult> SelectDishes(Guid id, SelectRecipeDraftDishesRequest request, CancellationToken cancellationToken)
     {
-        var result = await Mediator.Send(new SelectRecipeDraftDishesCommand(id, request.UserId, request.DishIndexes), cancellationToken);
+        var result = await Mediator.Send(new SelectRecipeDraftDishesCommand(id, CurrentUserId, request.DishIndexes), cancellationToken);
 
         return result.IsSuccess
-            ? AcceptedAtAction(nameof(GetById), new { id, userId = request.UserId }, null)
+            ? AcceptedAtAction(nameof(GetById), new { id }, null)
             : HandleResult(result);
     }
 
     /// <summary>Сохранить черновик как рецепт; возвращает Id рецепта.</summary>
     [HttpPost("{id:guid}/confirm")]
-    public async Task<IActionResult> Confirm(Guid id, RecipeDraftActorRequest request, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new ConfirmRecipeDraftCommand(id, request.UserId), cancellationToken));
+    public async Task<IActionResult> Confirm(Guid id, CancellationToken cancellationToken)
+        => HandleResult(await Mediator.Send(new ConfirmRecipeDraftCommand(id, CurrentUserId), cancellationToken));
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Cancel(Guid id, [FromQuery] Guid userId, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new CancelRecipeDraftCommand(id, userId), cancellationToken));
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken cancellationToken)
+        => HandleResult(await Mediator.Send(new CancelRecipeDraftCommand(id, CurrentUserId), cancellationToken));
 }

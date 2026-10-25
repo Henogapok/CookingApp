@@ -1,4 +1,6 @@
 using System.Net;
+using Cooking.Application.Auth;
+using Cooking.Application.Auth.Commands;
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Families.Commands;
 using Cooking.Application.Families.Queries;
@@ -82,8 +84,11 @@ public class BotUpdateHandler(
 
         if (BotCommandNames.MatchArguments(text, BotCommandNames.Start) is { } payload)
         {
-            // Deep link t.me/<bot>?start=<code> приходит как сообщение "/start <code>".
-            if (payload.Length > 0)
+            // Deep link t.me/<bot>?start=<code> приходит как сообщение "/start <code>":
+            // вход на сайт ("login_<код>") или приглашение в семью.
+            if (LoginRequestLink.ParseCode(payload) is { } loginCode)
+                await AskLoginConfirmationAsync(chatId, user, loginCode, cancellationToken);
+            else if (payload.Length > 0)
                 await JoinByInviteAsync(chatId, user, payload, cancellationToken);
             else
                 await SendGreetingAsync(chatId, user, cancellationToken);
@@ -201,6 +206,14 @@ public class BotUpdateHandler(
             case BotCallbacks.FamilyLeaveCancel when callback.Message is not null:
                 await bot.EditMessageText(chatId, callback.Message.Id, "Хорошо, остаёмся 🙂",
                     cancellationToken: cancellationToken);
+                break;
+
+            case var _ when BotCallbacks.MatchCode(data, BotCallbacks.LoginConfirmPrefix) is { } loginCode && callback.Message is not null:
+                await AnswerLoginAsync(chatId, callback.Message.Id, user, loginCode, confirm: true, cancellationToken);
+                break;
+
+            case var _ when BotCallbacks.MatchCode(data, BotCallbacks.LoginDeclinePrefix) is { } loginCode && callback.Message is not null:
+                await AnswerLoginAsync(chatId, callback.Message.Id, user, loginCode, confirm: false, cancellationToken);
                 break;
 
             case var _ when BotCallbacks.MatchId(data, BotCallbacks.RecipeEditPrefix) is { } recipeId:
@@ -838,6 +851,38 @@ public class BotUpdateHandler(
         await bot.SendMessage(chatId,
             $"Добро пожаловать в «{familyName}»! 🎉\nТеперь вы видите рецепты друг друга.",
             replyMarkup: BotKeyboards.MainMenu(hasFamily: true), cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Вход на сайт через бота: сразу не подтверждаем, а спрашиваем — ссылку мог прислать кто-то другой,
+    /// чтобы войти под этим пользователем в своём браузере.
+    /// </summary>
+    private async Task AskLoginConfirmationAsync(long chatId, UserDto user, string code, CancellationToken cancellationToken) =>
+        await bot.SendMessage(chatId,
+            $"🔐 Вход на сайт Cooking как {WebUtility.HtmlEncode(user.FirstName)}.\n\n" +
+            "Жми «Войти», только если ты сам(а) только что начал(а) вход на сайте. " +
+            "Если ссылку прислал кто-то другой — жми «Отмена».",
+            parseMode: ParseMode.Html, replyMarkup: BotKeyboards.ConfirmLogin(code), cancellationToken: cancellationToken);
+
+    private async Task AnswerLoginAsync(long chatId, int messageId, UserDto user, string code, bool confirm, CancellationToken cancellationToken)
+    {
+        Result result = confirm
+            ? await mediator.Send(new ConfirmLoginRequestCommand(code, user.Id), cancellationToken)
+            : await mediator.Send(new DeclineLoginRequestCommand(code, user.Id), cancellationToken);
+
+        var text = (result.IsSuccess, ErrorCodeOf(result)) switch
+        {
+            (true, _) when confirm => "✅ Готово! Возвращайся на сайт — вход выполнится сам.",
+            (true, _) => "Вход отменён. Без подтверждения здесь на сайт под тобой никто не войдёт.",
+            (false, ErrorCode.NotFound or ErrorCode.LogicConflict) => "Этот запрос на вход уже истёк или использован. Начни вход на сайте заново.",
+            _ => GenericErrorText,
+        };
+
+        if (text == GenericErrorText)
+            LogFailure(result, confirm ? "confirm login" : "decline login", user);
+
+        // Кнопки убираем в любом случае: повторное нажатие ничего не даст.
+        await bot.EditMessageText(chatId, messageId, text, cancellationToken: cancellationToken);
     }
 
     private async Task LeaveFamilyAsync(long chatId, UserDto user, int? confirmationMessageId, CancellationToken cancellationToken)

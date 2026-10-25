@@ -1,17 +1,25 @@
 using Cooking.Application.Common.Errors;
 using FluentResults;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cooking.Api.Controllers;
 
+// Всё API — только с токеном от Cooking.Auth; открытые эндпоинты помечены [AllowAnonymous].
 [ApiController]
+[Authorize]
 [Route("api/[controller]")]
 public abstract class BaseController : ControllerBase
 {
     private ISender? _mediator;
 
     protected ISender Mediator => _mediator ??= HttpContext.RequestServices.GetRequiredService<ISender>();
+
+    /// <summary>Текущий пользователь — claim sub из access token'а (Id пользователя в нашей базе).</summary>
+    protected Guid CurrentUserId => Guid.TryParse(User.FindFirst("sub")?.Value, out var id)
+        ? id
+        : throw new InvalidOperationException("Access token has no valid 'sub' claim.");
 
     protected IActionResult HandleResult<T>(Result<T> result) =>
         result.IsSuccess ? Ok(result.Value) : HandleFailure(result);

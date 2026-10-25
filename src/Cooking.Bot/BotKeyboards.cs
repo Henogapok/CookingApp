@@ -55,6 +55,17 @@ public static class BotCallbacks
     public static string DishToggle(Guid draftId, int index) => $"{DishPrefix}{draftId}:{index}";
     public static string DishGo(Guid draftId) => DishGoPrefix + draftId;
 
+    // Подтверждение входа на сайт: "login:yes:{код}" — 42 байта (код 32 символа), в лимит callback_data (64) влезает.
+    public const string LoginConfirmPrefix = "login:yes:";
+    public const string LoginDeclinePrefix = "login:no:";
+
+    public static string LoginConfirm(string code) => LoginConfirmPrefix + code;
+    public static string LoginDecline(string code) => LoginDeclinePrefix + code;
+
+    /// <summary>Если data — это prefix + непустой код, возвращает код; иначе null.</summary>
+    public static string? MatchCode(string data, string prefix) =>
+        data.StartsWith(prefix, StringComparison.Ordinal) && data.Length > prefix.Length ? data[prefix.Length..] : null;
+
     /// <summary>Черновик и номер блюда из кнопки DishToggle; null — это не она.</summary>
     public static (Guid DraftId, int Index)? ParseDishToggle(string data)
     {
@@ -321,6 +332,13 @@ public static class BotKeyboards
         buttonText.StartsWith(DishChecked, StringComparison.Ordinal) ? buttonText[DishChecked.Length..]
         : buttonText.StartsWith(DishUnchecked, StringComparison.Ordinal) ? buttonText[DishUnchecked.Length..]
         : buttonText;
+
+    public static InlineKeyboardMarkup ConfirmLogin(string code) =>
+        new(new[]
+        {
+            InlineKeyboardButton.WithCallbackData("✅ Войти", BotCallbacks.LoginConfirm(code)),
+            InlineKeyboardButton.WithCallbackData("Отмена", BotCallbacks.LoginDecline(code)),
+        });
 
     public static InlineKeyboardMarkup ConfirmLeave() =>
         new(new[]
