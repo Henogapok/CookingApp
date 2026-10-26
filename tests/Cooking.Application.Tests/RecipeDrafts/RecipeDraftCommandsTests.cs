@@ -350,6 +350,35 @@ public class RecipeDraftCommandsTests
     }
 
     [Fact]
+    public async Task Confirm_WhileAlreadyBeingSaved_FailsWithConflictAndCreatesNothing()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(ChickenRecipe)), new FakeNotifier());
+        // Первое нажатие «Сохранить» уже идёт.
+        await new RecipeDraftRepositoryService(context).StartConfirmationAsync(draftId, userId, CancellationToken.None);
+
+        AssertError(await ConfirmAsync(context, draftId, userId), ErrorCode.LogicConflict);
+        Assert.Empty(context.Recipes);
+    }
+
+    [Fact]
+    public async Task Confirm_SaveFailed_DraftCanBeConfirmedAgain()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var drafts = new RecipeDraftRepositoryService(context);
+        var draftId = await CreateDraftAsync(context, userId);
+        await ParseAsync(context, draftId, new FakeParser(Result.Ok(ChickenRecipe)), new FakeNotifier());
+        await drafts.StartConfirmationAsync(draftId, userId, CancellationToken.None);
+
+        await drafts.CancelConfirmationAsync(draftId, CancellationToken.None);
+
+        Assert.True((await ConfirmAsync(context, draftId, userId)).IsSuccess);
+    }
+
+    [Fact]
     public async Task Confirm_IngredientAddedToCatalogMeanwhile_ReusesIt()
     {
         var (context, userId, _) = await CreateAsync();
@@ -698,6 +727,23 @@ public class RecipeDraftCommandsTests
             new FakeVideoLoader(Result.Ok(new VideoSource("  ", TempFile()))), new FakeSpeechToText(Result.Ok("")));
 
         Assert.Equal([RecipeDraftFailureReason.NoTextInVideo], notifier.Failed);
+        Assert.Null(parser.LastRequest);
+    }
+
+    [Fact]
+    public async Task FromUrl_TranscriptionFailedAndEmptyCaption_ReportsTranscriptionFailed()
+    {
+        var (context, userId, _) = await CreateAsync();
+        await using var _ = context;
+        var draftId = (await CreateFromUrlAsync(context, userId, "https://instagram.com/reel/abc123")).Value;
+        var parser = new FakeParser(Result.Ok(ChickenRecipe));
+        var notifier = new FakeNotifier();
+
+        await ParseAsync(context, draftId, parser, notifier,
+            new FakeVideoLoader(Result.Ok(new VideoSource("", TempFile()))),
+            new FakeSpeechToText(Result.Fail(new AppError("whisper down", ErrorCode.ExternalService))));
+
+        Assert.Equal([RecipeDraftFailureReason.TranscriptionFailed], notifier.Failed);
         Assert.Null(parser.LastRequest);
     }
 

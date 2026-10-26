@@ -51,6 +51,7 @@ public class YtDlpVideoSourceLoader(IOptions<YtDlpOptions> options, ILogger<YtDl
         arguments.Add(url);
 
         await _downloadGate.WaitAsync(cancellationToken);
+        var succeeded = false;
         try
         {
             var started = Stopwatch.GetTimestamp();
@@ -64,6 +65,8 @@ public class YtDlpVideoSourceLoader(IOptions<YtDlpOptions> options, ILogger<YtDl
                 logger.LogWarning("yt-dlp failed for {Url} (exit {ExitCode}): {Error}", url, exitCode, stderr.Trim());
                 return Result.Fail(new AppError($"yt-dlp could not load the video: {stderr.Trim()}", ClassifyError(stderr)));
             }
+
+            succeeded = true;
 
             var audioFile = Directory.GetFiles(TempDirectory, fileName + ".*").FirstOrDefault();
             var description = ReadDescription(stdout);
@@ -79,6 +82,24 @@ public class YtDlpVideoSourceLoader(IOptions<YtDlpOptions> options, ILogger<YtDl
         finally
         {
             _downloadGate.Release();
+            // Ошибка, таймаут или отмена — убираем недокачанное (.part, .ytdl), иначе оно копится в temp.
+            if (!succeeded)
+                DeleteFiles(fileName);
+        }
+    }
+
+    private void DeleteFiles(string fileName)
+    {
+        foreach (var file in Directory.GetFiles(TempDirectory, fileName + ".*"))
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch (IOException ex)
+            {
+                logger.LogWarning(ex, "Could not delete temporary file {File}", Path.GetFileName(file));
+            }
         }
     }
 
@@ -159,9 +180,13 @@ public class YtDlpVideoSourceLoader(IOptions<YtDlpOptions> options, ILogger<YtDl
 
             return Result.Ok((process.ExitCode, await stdout, await stderr));
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
+            // И таймаут, и остановка приложения: процесс не должен остаться сиротой и докачивать файл.
             process.Kill(entireProcessTree: true);
+            if (cancellationToken.IsCancellationRequested)
+                throw;
+
             return Result.Fail(new AppError($"yt-dlp timed out after {settings.TimeoutSeconds}s.", ErrorCode.ExternalService));
         }
     }

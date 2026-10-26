@@ -59,6 +59,9 @@ openssl rand -hex 32
 | `TELEGRAM_BOT_TOKEN` | токен **прод**-бота (не dev: один бот не может одновременно polling и webhook) |
 | `ANTHROPIC_API_KEY` | ключ Anthropic |
 | `OPENAI_API_KEY` | ключ OpenAI (Whisper); можно не задавать — Reels будут разбираться только по описанию |
+| `DEPLOY_KNOWN_HOSTS` | ключ сервера для SSH — вывод `ssh-keyscan -t ed25519 80.240.24.108` (одна строка). Сверьте отпечаток: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` на сервере должен совпасть с `ssh-keyscan -t ed25519 80.240.24.108 \| ssh-keygen -lf -` у себя |
+
+Значения секретов не должны содержать одинарную кавычку и перевод строки — деплой проверит это и остановится.
 
 Вкладка **Variables** → *New repository variable*:
 
@@ -71,7 +74,7 @@ openssl rand -hex 32
 ### 4. Первый деплой
 
 Влить ветку в main (через dev, как обычно) и запушить — запустится **Actions → Deploy**.
-Позже его можно запускать и вручную: Actions → Deploy → *Run workflow*.
+Позже его можно запускать и вручную: Actions → Deploy → *Run workflow* (только для ветки main — другую ветку workflow в прод не выкатит).
 
 ### 5. Проверка
 
@@ -101,7 +104,8 @@ ssh -N -L 5341:localhost:5341 linuxuser@80.240.24.108
 > Если локально тоже запущен Seq из `docker-compose.yml`, порт 5341 занят — используйте `-L 5342:localhost:5341` и http://localhost:5342.
 
 **Откат** на предыдущую версию: на сервере в `~/cooking/.env` поменять `IMAGE_TAG` на SHA нужного коммита и `docker compose up -d`
-(следующий деплой перезапишет `.env`). Или Actions → Deploy → Run workflow на нужном коммите.
+(следующий деплой перезапишет `.env`). Образы последних 10 дней лежат на сервере (`docker images`); более старый — только через
+`docker login ghcr.io` с личным токеном GitHub (права `read:packages`). Надёжнее — `git revert` в main: деплой соберёт и выкатит версию сам.
 
 **Бэкап базы вручную** (кроме автобэкапов Vultr):
 

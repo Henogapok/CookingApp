@@ -42,8 +42,12 @@ export function formatRecipeMeta(recipe: RecipeSummary): string {
     .join(' · ');
 }
 
-/** 300 → «300», 1.5 → «1,5», 0.333 → «0,3»: до 10 — с одной десятой, дальше целые. */
+/**
+ * 300 → «300», 1.5 → «1,5», 0.333 → «0,3»: до 10 — с одной десятой, дальше целые.
+ * Меньше 0,05 (щепотка на 25 порций, уменьшенная до одной) — «< 0,1», а не «0»: ингредиент всё же нужен.
+ */
 export function formatAmount(amount: number): string {
+  if (amount > 0 && amount < 0.05) return '< 0,1';
   const rounded = amount >= 10 ? Math.round(amount) : Math.round(amount * 10) / 10;
   return rounded.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
 }

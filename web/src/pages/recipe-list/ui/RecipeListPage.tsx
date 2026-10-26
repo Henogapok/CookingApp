@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router';
+import { NavigationType, useLocation, useNavigationType, useSearchParams } from 'react-router';
 import { isInMealGroup, mealGroups, recipeListQuery, type MealGroupId } from '@/entities/recipe';
 import { getErrorMessage } from '@/shared/api';
 import { useMediaQuery } from '@/shared/lib';
@@ -37,18 +37,35 @@ export function RecipeListPage({ userName, onSignOut }: RecipeListPageProps) {
       { replace: name === 'q' },
     );
 
+  // Текст поля поиска — свой state, а адрес догоняет его: React Router меняет адрес в transition, асинхронно,
+  // а поле ввода, привязанное к такому значению, теряет символы и курсор. «Назад»/«вперёд» (POP) возвращают
+  // в поле то, что было в той записи истории; свои изменения адреса поле не трогают.
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const [searchText, setSearchText] = useState(query);
+  const [shownLocationKey, setShownLocationKey] = useState(location.key);
+  if (location.key !== shownLocationKey) {
+    setShownLocationKey(location.key);
+    if (navigationType === NavigationType.Pop) setSearchText(query);
+  }
+
+  const changeSearchText = (value: string) => {
+    setSearchText(value);
+    updateParams('q', value);
+  };
+
   const isDesktop = useMediaQuery('(min-width: 900px)');
 
   // Загрузку, ошибку, повторы и кэш ведёт TanStack Query. Список обновляется сам в фоне: при открытии экрана,
   // при возврате в приложение и после восстановления сети, если с прошлой загрузки прошло больше staleTime.
-  const { data: recipes, isPending, isError, error, refetch } = useQuery(recipeListQuery());
+  const { data: recipes, isPending, error, refetch } = useQuery(recipeListQuery());
 
   // Всё ниже вычисляется из списка и фильтров, поэтому это не useState, а useMemo:
   // пересчитывается, только когда поменялось то, от чего зависит.
   const found = useMemo(() => {
-    const searched = recipes ? searchRecipes(recipes, query) : [];
+    const searched = recipes ? searchRecipes(recipes, searchText) : [];
     return group === 'all' ? searched : searched.filter((recipe) => isInMealGroup(recipe, group));
-  }, [recipes, query, group]);
+  }, [recipes, searchText, group]);
 
   const shelves = useMemo(
     () =>
@@ -64,7 +81,8 @@ export function RecipeListPage({ userName, onSignOut }: RecipeListPageProps) {
   let status = null;
   if (isPending) {
     status = isDesktop ? <DesktopShowcaseSkeleton /> : <MobileRecipeListSkeleton />;
-  } else if (isError) {
+  } else if (!recipes) {
+    // Ошибка, только если показать нечего: неудачное фоновое обновление оставляет на экране уже загруженный список.
     status = (
       <div className={styles.status} role="alert">
         <p>{getErrorMessage(error)}</p>
@@ -80,8 +98,8 @@ export function RecipeListPage({ userName, onSignOut }: RecipeListPageProps) {
   const common = {
     userName,
     onSignOut,
-    query,
-    onQueryChange: (value: string) => updateParams('q', value),
+    query: searchText,
+    onQueryChange: changeSearchText,
     group,
     onGroupChange: (value: MealGroupId | 'all') => updateParams('group', value),
     recipes: found,

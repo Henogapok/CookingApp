@@ -32,6 +32,21 @@ public class RecipeFieldsValidatorTests
         Assert.True(Validator.Validate(fields).IsValid);
     }
 
+    [Theory]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,<script>alert(1)</script>")]
+    [InlineData("instagram.com/reel/abc")]
+    public void NotHttpSourceUrl_FailsValidation(string url)
+    {
+        Assert.False(Validator.Validate(ValidFields() with { SourceUrl = url }).IsValid);
+    }
+
+    [Fact]
+    public void HttpsSourceUrl_PassesValidation()
+    {
+        Assert.True(Validator.Validate(ValidFields() with { SourceUrl = "https://www.instagram.com/reel/abc/" }).IsValid);
+    }
+
     [Fact]
     public void DuplicateTags_FailValidation()
     {

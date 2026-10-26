@@ -56,6 +56,18 @@ COPY --from=build /app/auth .
 USER app
 ENTRYPOINT ["dotnet", "Cooking.Auth.dll"]
 
+# Самый свежий yt-dlp при каждой сборке: Instagram регулярно ломает скачивание.
+# yt-dlp_linux — самостоятельный бинарник, Python не нужен. Сверяем с контрольными суммами того же релиза
+# (битая или подменённая по дороге загрузка не попадёт в образ, где у Api все секреты). Отдельный stage —
+# чтобы в образ Api не попали лишние копии файла.
+FROM runtime AS ytdlp
+USER root
+ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /tmp/yt-dlp_linux
+ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS /tmp/SHA2-256SUMS
+RUN cd /tmp \
+    && grep ' yt-dlp_linux$' SHA2-256SUMS | sha256sum -c - \
+    && install -m 755 yt-dlp_linux /yt-dlp
+
 FROM runtime AS api
 
 # ffmpeg — для обработки звука в yt-dlp.
@@ -63,9 +75,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Самый свежий yt-dlp при каждой сборке: Instagram регулярно ломает скачивание.
-# yt-dlp_linux — самостоятельный бинарник, Python не нужен.
-ADD --chmod=755 https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /usr/local/bin/yt-dlp
+COPY --from=ytdlp /yt-dlp /usr/local/bin/yt-dlp
 
 COPY --from=build /app/api .
 USER app

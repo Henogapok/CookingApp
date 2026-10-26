@@ -107,6 +107,21 @@ public class BotUpdateHandler(
                 await ShowRecipesAsync(chatId, user, cancellationToken);
                 break;
 
+            case BotButtons.CreateFamily:
+                await CreateFamilyAsync(chatId, user, cancellationToken);
+                break;
+
+            case BotButtons.JoinFamily:
+                await bot.SendMessage(chatId,
+                    "Попроси кого-нибудь из семьи нажать «Моя семья» → «Пригласить» и прислать тебе ссылку. " +
+                    "Открой её — и ты сразу окажешься в семье.",
+                    replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
+                break;
+
+            case BotButtons.MyFamily:
+                await ShowFamilyAsync(chatId, user, cancellationToken);
+                break;
+
             // Кнопки меню проверяются раньше: нажатие кнопки при открытом поле ответа тоже может прийти как reply.
             case var query when replyTo is { From.IsBot: true, Text: BotTexts.SearchPrompt }:
                 await SearchRecipesAsync(chatId, user, query, cancellationToken);
@@ -133,21 +148,6 @@ public class BotUpdateHandler(
             // Ответ на «Что поправить?» после кнопки «Исправить».
             case var correction when replyTo is { From.IsBot: true } && BotCallbacks.FindDraftEditTarget(replyTo) is { } target:
                 await CorrectDraftAsync(chatId, user, target.DraftId, correction, target.PreviewMessageId, replyTo.MessageId, cancellationToken);
-                break;
-
-            case BotButtons.CreateFamily:
-                await CreateFamilyAsync(chatId, user, cancellationToken);
-                break;
-
-            case BotButtons.JoinFamily:
-                await bot.SendMessage(chatId,
-                    "Попроси кого-нибудь из семьи нажать «Моя семья» → «Пригласить» и прислать тебе ссылку. " +
-                    "Открой её — и ты сразу окажешься в семье.",
-                    replyMarkup: BotKeyboards.MainMenu(user.FamilyId is not null), cancellationToken: cancellationToken);
-                break;
-
-            case BotButtons.MyFamily:
-                await ShowFamilyAsync(chatId, user, cancellationToken);
                 break;
 
             case var withLink when RecipeSourceText.FindInstagramLink(withLink) is { } reelUrl:
@@ -631,10 +631,22 @@ public class BotUpdateHandler(
         var extension = Path.GetExtension(fileName);
         var path = Path.Combine(directory, Guid.NewGuid().ToString("N") + (string.IsNullOrEmpty(extension) ? ".mp4" : extension));
 
-        await using (var file = File.Create(path))
-            await bot.GetInfoAndDownloadFile(fileId, file, cancellationToken);
+        // Файл дальше принадлежит черновику (его удалит фоновый разбор); до этого — при любой неудаче удаляем сами.
+        // Размер известен не всегда (FileSize = null) — тогда слишком большой файл отклонит сам Telegram, исключением.
+        Result<Guid> result;
+        try
+        {
+            await using (var file = File.Create(path))
+                await bot.GetInfoAndDownloadFile(fileId, file, cancellationToken);
 
-        var result = await mediator.Send(new CreateRecipeDraftFromVideoCommand(user.Id, path, message.Caption), cancellationToken);
+            result = await mediator.Send(new CreateRecipeDraftFromVideoCommand(user.Id, path, message.Caption), cancellationToken);
+        }
+        catch
+        {
+            File.Delete(path);
+            throw;
+        }
+
         if (result.IsFailed)
         {
             File.Delete(path);
@@ -776,7 +788,7 @@ public class BotUpdateHandler(
             return;
         }
 
-        var result = await mediator.Send(new GetFamilyByIdQuery(familyId), cancellationToken);
+        var result = await mediator.Send(new GetFamilyByIdQuery(familyId, user.Id), cancellationToken);
         if (result.IsFailed)
         {
             LogFailure(result, "get family", user);
@@ -845,7 +857,7 @@ public class BotUpdateHandler(
             return;
         }
 
-        var family = await mediator.Send(new GetFamilyByIdQuery(result.Value), cancellationToken);
+        var family = await mediator.Send(new GetFamilyByIdQuery(result.Value, user.Id), cancellationToken);
         var familyName = family.IsSuccess ? family.Value.Name : "семью";
 
         await bot.SendMessage(chatId,

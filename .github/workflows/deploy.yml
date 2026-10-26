@@ -20,6 +20,8 @@ jobs:
 
   build:
     needs: test
+    # Ручной запуск (Run workflow) — тоже только из main: другая ветка не должна попасть в прод и в :latest.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,13 +37,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Один Dockerfile, два stage'а (--target): общий stage сборки собирается один раз и берётся из кэша buildx.
+      # Один Dockerfile, несколько stage'ей (--target): общий stage сборки собирается один раз и берётся из кэша buildx.
+      # Кэш слоёв — в кэше GitHub Actions (type=gha): без изменений в зависимостях restore и apt не повторяются.
       - name: Build Api image
         uses: docker/build-push-action@v6
         with:
           context: .
           target: api
           push: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
           tags: |
             ${{ env.API_IMAGE }}:latest
             ${{ env.API_IMAGE }}:${{ github.sha }}
@@ -53,6 +58,8 @@ jobs:
           context: .
           target: auth
           push: true
+          cache-from: type=gha,scope=auth
+          cache-to: type=gha,scope=auth,mode=max
           tags: |
             ${{ env.AUTH_IMAGE }}:latest
             ${{ env.AUTH_IMAGE }}:${{ github.sha }}
@@ -65,6 +72,8 @@ jobs:
           context: .
           target: web
           push: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
           build-args: VITE_AUTH_AUTHORITY=https://auth.${{ vars.DOMAIN }}/
           tags: |
             ${{ env.WEB_IMAGE }}:latest
@@ -82,15 +91,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Ключ сервера — заранее сохранённый (секрет DEPLOY_KNOWN_HOSTS), а не ssh-keyscan при каждом запуске:
+      # иначе подменённый сервер получил бы .env со всеми секретами.
       - name: Set up SSH
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
 
       - name: Write .env
         env:
@@ -100,16 +111,23 @@ jobs:
           TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # Значения в одинарных кавычках: Docker Compose не подставляет в них переменные ($ в пароле остаётся $).
+        # Одинарной кавычки и перевода строки в секретах быть не должно — проверяем, а не пишем битый .env.
         run: |
           umask 077
+          for name in DOMAIN POSTGRES_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET ANTHROPIC_API_KEY OPENAI_API_KEY; do
+            case "${!name}" in
+              *"'"* | *$'\n'*) echo "::error::$name contains a single quote or a line break"; exit 1 ;;
+            esac
+          done
           {
-            printf 'DOMAIN=%s\n' "$DOMAIN"
-            printf 'IMAGE_TAG=%s\n' "$GITHUB_SHA"
-            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
-            printf 'TELEGRAM_BOT_TOKEN=%s\n' "$TELEGRAM_BOT_TOKEN"
-            printf 'TELEGRAM_WEBHOOK_SECRET=%s\n' "$TELEGRAM_WEBHOOK_SECRET"
-            printf 'ANTHROPIC_API_KEY=%s\n' "$ANTHROPIC_API_KEY"
-            printf 'OPENAI_API_KEY=%s\n' "$OPENAI_API_KEY"
+            printf "DOMAIN='%s'\n" "$DOMAIN"
+            printf "IMAGE_TAG='%s'\n" "$GITHUB_SHA"
+            printf "POSTGRES_PASSWORD='%s'\n" "$POSTGRES_PASSWORD"
+            printf "TELEGRAM_BOT_TOKEN='%s'\n" "$TELEGRAM_BOT_TOKEN"
+            printf "TELEGRAM_WEBHOOK_SECRET='%s'\n" "$TELEGRAM_WEBHOOK_SECRET"
+            printf "ANTHROPIC_API_KEY='%s'\n" "$ANTHROPIC_API_KEY"
+            printf "OPENAI_API_KEY='%s'\n" "$OPENAI_API_KEY"
           } > deploy/.env
 
       - name: Copy files to server
@@ -122,5 +140,7 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Токен живёт только пока идёт этот job — образ скачивается сразу, потом выходим из GHCR.
+          # prune -a: образы помечены SHA коммита, поэтому старые не «висящие» и обычный prune их не трогает.
+          # until=240h — образы последних 10 дней остаются на сервере для отката (README → «Откат»).
           printf '%s' "$GHCR_TOKEN" | ssh "$TARGET" "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
-          ssh "$TARGET" 'cd ~/cooking && docker compose pull && docker compose up -d --remove-orphans; status=$?; docker logout ghcr.io; docker image prune -f; exit $status'
+          ssh "$TARGET" 'cd ~/cooking && docker compose pull && docker compose up -d --remove-orphans; status=$?; docker logout ghcr.io; docker image prune -af --filter "until=240h"; exit $status'

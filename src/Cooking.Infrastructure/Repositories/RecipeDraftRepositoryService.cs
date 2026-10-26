@@ -16,6 +16,11 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
     /// <summary>Сколько черновик ждёт подтверждения.</summary>
     private static readonly TimeSpan Lifetime = TimeSpan.FromDays(1);
 
+    /// <summary>
+    /// Отметка «сохраняется» старше этого — сохранение оборвалось (процесс перезапустился), черновик снова доступен.
+    /// </summary>
+    private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(2);
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public async Task<Result<Guid>> CreateAsync(Guid userId, string sourceText, CancellationToken cancellationToken)
@@ -188,6 +193,36 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
         await dataContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<Result> StartConfirmationAsync(Guid id, Guid userId, CancellationToken cancellationToken)
+    {
+        var draft = await FindOwnAsync(id, userId, cancellationToken);
+        if (draft.IsFailed)
+            return draft.ToResult();
+
+        draft.Value.ConfirmingAt = DateTime.UtcNow;
+        try
+        {
+            await dataContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Параллельный запрос успел поставить отметку первым.
+            return BeingConfirmed(id);
+        }
+
+        return Result.Ok();
+    }
+
+    public async Task CancelConfirmationAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
+        if (draft is null)
+            return;
+
+        draft.ConfirmingAt = null;
+        await dataContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<Result<RecipeDraftContent>> GetContentAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
         var draft = await FindOwnAsync(id, userId, cancellationToken);
@@ -296,7 +331,8 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
     public async Task<Result> DeleteAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
-        var draft = await FindOwnAsync(id, userId, cancellationToken, requireParsed: false, allowCorrecting: true);
+        var draft = await FindOwnAsync(
+            id, userId, cancellationToken, requireParsed: false, allowCorrecting: true, allowConfirming: true);
         if (draft.IsFailed)
             return draft.ToResult();
 
@@ -321,7 +357,8 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
     /// разобран и без незавершённой правки — иначе сохранить или поправить можно было бы устаревшую версию.
     /// </summary>
     private async Task<Result<RecipeDraft>> FindOwnAsync(
-        Guid id, Guid userId, CancellationToken cancellationToken, bool requireParsed = true, bool allowCorrecting = false)
+        Guid id, Guid userId, CancellationToken cancellationToken,
+        bool requireParsed = true, bool allowCorrecting = false, bool allowConfirming = false)
     {
         var draft = await dataContext.RecipeDrafts.FindAsync([id], cancellationToken);
 
@@ -334,6 +371,9 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
         if (!allowCorrecting && draft.PendingCorrection is not null)
             return Result.Fail(new AppError($"Recipe draft '{id}' is being corrected.", ErrorCode.LogicConflict));
 
+        if (!allowConfirming && draft.ConfirmingAt > DateTime.UtcNow - ConfirmationTimeout)
+            return BeingConfirmed(id);
+
         return Result.Ok(draft);
     }
 
@@ -344,6 +384,9 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
     private static List<string>? DeserializeList(string? json) =>
         json is null ? null : JsonSerializer.Deserialize<List<string>>(json, JsonOptions);
+
+    private static Result BeingConfirmed(Guid id) =>
+        Result.Fail(new AppError($"Recipe draft '{id}' is already being saved.", ErrorCode.LogicConflict));
 
     private static Result DraftNotFound(Guid id) =>
         Result.Fail(new AppError($"Recipe draft with id '{id}' was not found.", ErrorCode.NotFound));

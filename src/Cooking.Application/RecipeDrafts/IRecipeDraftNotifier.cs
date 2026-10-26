@@ -37,4 +37,7 @@ public enum RecipeDraftFailureReason
 
     /// <summary>В видео нет речи, а в описании — текста (например, только музыка).</summary>
     NoTextInVideo,
+
+    /// <summary>Описания нет, а расшифровать речь не удалось (сервис недоступен или не настроен).</summary>
+    TranscriptionFailed,
 }

@@ -25,17 +25,23 @@ interface RecipePageProps {
 export function RecipePage({ userName, onSignOut }: RecipePageProps) {
   const { id = '' } = useParams();
   const isDesktop = useMediaQuery('(min-width: 900px)');
-  const { data: recipe, isPending, isError, error, refetch } = useQuery(recipeQuery(id));
+  const { data: recipe, isPending, error, refetch } = useQuery(recipeQuery(id));
   // Краткая карточка из уже загруженного списка: пока идёт запрос, название и обложка видны сразу.
   const summary = useQueryClient()
     .getQueryData(recipeListQuery().queryKey)
     ?.find((item) => item.id === id);
 
+  // Сначала данные: неудачное фоновое обновление (вернулись в приложение, а Api перезапускается) не должно
+  // убирать открытый рецепт и сбрасывать выбранные порции — ошибку показываем, только если показать нечего
+  // или рецепт удалили (404).
+  const notFound = error instanceof ApiError && error.status === 404;
   let content;
-  if (isPending) {
+  if (recipe && !notFound) {
+    // key: при переходе на другой рецепт выбранные порции сбрасываются к его собственным.
+    content = <RecipeView key={recipe.id} recipe={recipe} />;
+  } else if (isPending) {
     content = <RecipeSkeleton summary={summary} />;
-  } else if (isError) {
-    const notFound = error instanceof ApiError && error.status === 404;
+  } else {
     content = (
       <div className={styles.status} role="alert">
         <p>{notFound ? 'Рецепт не найден — возможно, его удалили' : getErrorMessage(error)}</p>
@@ -50,9 +56,6 @@ export function RecipePage({ userName, onSignOut }: RecipePageProps) {
         )}
       </div>
     );
-  } else {
-    // key: при переходе на другой рецепт выбранные порции сбрасываются к его собственным.
-    content = <RecipeView key={recipe.id} recipe={recipe} />;
   }
 
   return (

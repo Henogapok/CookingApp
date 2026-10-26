@@ -95,7 +95,8 @@ public class LoginRequestRepositoryService(IDataContext dataContext) : ILoginReq
         var request = await dataContext.LoginRequests.FirstOrDefaultAsync(r => r.Code == code, cancellationToken);
 
         if (request is null)
-            return Result.Fail(new AppError($"Login request '{code}' was not found.", ErrorCode.NotFound));
+            // Код в текст не пишем: ошибка уходит в лог (LoggingBehavior), а код входа в логах запрещён.
+            return Result.Fail(new AppError("Login request was not found.", ErrorCode.NotFound));
 
         if (request.ExpiresAt < DateTime.UtcNow)
             return Result.Fail(new AppError("Login request has expired.", ErrorCode.LogicConflict));
