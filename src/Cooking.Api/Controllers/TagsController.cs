@@ -1,6 +1,8 @@
+using Cooking.Api.Authorization;
 using Cooking.Api.Contracts;
 using Cooking.Application.Tags.Commands;
 using Cooking.Application.Tags.Queries;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cooking.Api.Controllers;
@@ -16,6 +18,7 @@ public class TagsController : BaseController
         => HandleResult(await Mediator.Send(new GetTagByIdQuery(id), cancellationToken));
 
     [HttpPost]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Create(TagRequest request, CancellationToken cancellationToken)
     {
         var result = await Mediator.Send(new CreateTagCommand(request.Name, request.TagTypeId), cancellationToken);
@@ -26,10 +29,12 @@ public class TagsController : BaseController
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Update(Guid id, TagRequest request, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new UpdateTagCommand(id, request.Name, request.TagTypeId), cancellationToken));
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new DeleteTagCommand(id), cancellationToken));
 }

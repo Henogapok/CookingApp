@@ -1,4 +1,6 @@
+using Cooking.Api.Authorization;
 using Cooking.Api.Options;
+using Cooking.Application.Users;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
 
@@ -21,9 +23,11 @@ public static class ServiceCollectionExtensions
                 // Оставляем claim'ы как в токене ("sub", "name"), без переименования в длинные URI из WS-Federation.
                 jwt.MapInboundClaims = false;
                 jwt.TokenValidationParameters.NameClaimType = "name";
+                // Роли — claim "role" (его кладёт Cooking.Auth); без этого RequireRole искал бы длинный URI Microsoft и не находил.
+                jwt.TokenValidationParameters.RoleClaimType = UserRoles.ClaimType;
             });
 
-        services.AddAuthorization();
+        services.AddAuthorization(Policies.Add);
         return services;
     }
 

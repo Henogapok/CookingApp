@@ -1,6 +1,8 @@
+using Cooking.Api.Authorization;
 using Cooking.Api.Contracts;
 using Cooking.Application.Ingredients.Commands;
 using Cooking.Application.Ingredients.Queries;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cooking.Api.Controllers;
@@ -16,6 +18,7 @@ public class IngredientCatalogController : BaseController
         => HandleResult(await Mediator.Send(new GetIngredientCatalogByIdQuery(id), cancellationToken));
 
     [HttpPost]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Create(IngredientCatalogRequest request, CancellationToken cancellationToken)
     {
         var result = await Mediator.Send(
@@ -39,6 +42,7 @@ public class IngredientCatalogController : BaseController
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Update(Guid id, IngredientCatalogRequest request, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(
             new UpdateIngredientCatalogCommand(
@@ -57,6 +61,7 @@ public class IngredientCatalogController : BaseController
             cancellationToken));
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new DeleteIngredientCatalogCommand(id), cancellationToken));
 }

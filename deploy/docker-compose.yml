@@ -49,6 +49,8 @@ services:
       Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:?}
       # Кнопка Telegram Login Widget: домен auth.<домен> привязан к прод-боту через /setdomain в BotFather.
       Telegram__LoginWidgetEnabled: "true"
+      # Администратор (правит общие справочники): его токены получают роль admin.
+      Admin__TelegramIds__0: ${ADMIN_TELEGRAM_ID:?}
       # Адрес в поле iss токенов — публичный, а не http://auth:8080, который Auth видит изнутри docker-сети.
       Auth__Issuer: https://auth.${DOMAIN:?}/
       # Ключи подписи/шифрования токенов: создаются при первом старте и дальше живут на volume auth_keys.
