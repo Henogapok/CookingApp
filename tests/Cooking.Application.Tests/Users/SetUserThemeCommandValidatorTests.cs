@@ -21,6 +21,7 @@ public class SetUserThemeCommandValidatorTests
     [InlineData("dark theme")]
     [InlineData("<script>")]
     [InlineData("abcdefghijklmnopqrstuvwxyzabcdefg")]
+    [InlineData("sage\n")]
     public void NotThemeId_FailsValidation(string theme)
     {
         Assert.False(Validator.Validate(new SetUserThemeCommand(Guid.NewGuid(), theme)).IsValid);

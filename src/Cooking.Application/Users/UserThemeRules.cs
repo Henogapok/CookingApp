@@ -8,6 +8,9 @@ public static class UserThemeRules
 {
     public const int MaxLength = 32;
 
-    /// <summary>Id тем в PWA — латинские буквы в нижнем регистре («sage», «midnight», «auto»).</summary>
-    public const string Pattern = "^[a-z]+$";
+    /// <summary>
+    /// Id тем в PWA — латинские буквы в нижнем регистре («sage», «midnight», «auto»).
+    /// \z, а не $: в .NET $ совпадает и перед завершающим \n, и «sage\n» прошёл бы проверку.
+    /// </summary>
+    public const string Pattern = @"^[a-z]+\z";
 }

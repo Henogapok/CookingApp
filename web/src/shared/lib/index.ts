@@ -1,8 +1,11 @@
 export {
   autoThemes,
+  chooseTheme,
   getThemeChoice,
   initTheme,
   isThemeChoice,
+  isThemeUnsynced,
+  markThemeSynced,
   resolveTheme,
   setThemeChoice,
   subscribeThemeChoice,

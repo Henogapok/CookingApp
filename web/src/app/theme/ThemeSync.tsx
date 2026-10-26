@@ -1,7 +1,13 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { currentUserQuery, saveTheme, userKeys, type CurrentUser } from '@/entities/user';
-import { getThemeChoice, setThemeChoice, subscribeThemeChoice } from '@/shared/lib';
+import { currentUserQuery, saveTheme, userKeys } from '@/entities/user';
+import {
+  getThemeChoice,
+  isThemeUnsynced,
+  markThemeSynced,
+  setThemeChoice,
+  subscribeThemeChoice,
+} from '@/shared/lib';
 import { reconcileTheme } from './reconcileTheme';
 
 /**
@@ -14,29 +20,33 @@ export function ThemeSync() {
   const { data: user } = useQuery(currentUserQuery());
   const { mutate: upload } = useMutation({
     mutationFn: saveTheme,
-    // Сервер принял — кэш профиля знает новую тему, и следующая сверка не вернёт старую.
-    onSuccess: (_, theme) =>
-      queryClient.setQueryData<CurrentUser>(userKeys.me(), (current) => current && { ...current, theme }),
+    // Сохранения — строго по очереди: иначе при быстрой смене тем на сервере мог бы остаться не последний выбор.
+    scope: { id: 'theme' },
+    onSuccess: (_, theme) => {
+      // Пока шёл запрос, могли выбрать другую тему — тогда она ещё не отправлена.
+      if (getThemeChoice() === theme) markThemeSynced();
+      // Перечитываем профиль, а не правим кэш: заодно отменится загрузка профиля, начатая до сохранения.
+      return queryClient.invalidateQueries({ queryKey: userKeys.me() });
+    },
+    // Ошибка — флаг «не отправлено» остаётся, выбор уйдёт при следующей сверке.
   });
 
-  // Сервер → устройство: при загрузке профиля и при каждом его обновлении.
+  // Сверка при загрузке профиля и при каждом его обновлении.
   const serverTheme = user?.theme;
   useEffect(() => {
     if (serverTheme === undefined) return;
-    const result = reconcileTheme(serverTheme, getThemeChoice());
+    const result = reconcileTheme(serverTheme, getThemeChoice(), isThemeUnsynced());
     if (result.action === 'apply') setThemeChoice(result.theme);
     if (result.action === 'upload') upload(result.theme);
   }, [serverTheme, upload]);
 
-  // Устройство → сервер: пользователь выбрал тему в меню профиля. Тему, пришедшую с сервера, обратно не отправляем.
+  // Выбор в меню (chooseTheme ставит флаг) — сразу на сервер. Тема, пришедшая с сервера, флаг не ставит и обратно не уходит.
   useEffect(
     () =>
       subscribeThemeChoice(() => {
-        const current = queryClient.getQueryData<CurrentUser>(userKeys.me());
-        const choice = getThemeChoice();
-        if (current && current.theme !== choice) upload(choice);
+        if (isThemeUnsynced()) upload(getThemeChoice());
       }),
-    [queryClient, upload],
+    [upload],
   );
 
   return null;
