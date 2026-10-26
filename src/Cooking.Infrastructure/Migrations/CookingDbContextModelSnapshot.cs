@@ -100,10 +100,6 @@ namespace Cooking.Infrastructure.Migrations
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
 
-                    b.Property<decimal>("PricePer100g")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("numeric(10,2)");
-
                     b.Property<decimal>("ProteinPer100g")
                         .HasPrecision(10, 2)
                         .HasColumnType("numeric(10,2)");
@@ -273,7 +269,83 @@ namespace Cooking.Infrastructure.Migrations
                             Id = new Guid("00000003-0000-0000-0000-000000000007"),
                             Abbreviation = "щеп.",
                             Name = "Щепотка"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000003-0000-0000-0000-000000000008"),
+                            Abbreviation = "кг",
+                            Name = "Килограмм"
+                        },
+                        new
+                        {
+                            Id = new Guid("00000003-0000-0000-0000-000000000009"),
+                            Abbreviation = "л",
+                            Name = "Литр"
                         });
+                });
+
+            modelBuilder.Entity("Cooking.Domain.Entities.Ingredients.Product", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("CaloriesPer100g")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<decimal?>("CarbsPer100g")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("FatPer100g")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<Guid>("IngredientCatalogId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("PackageAmount")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<decimal?>("PackagePrice")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<Guid?>("PackageUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("ProteinPer100g")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<DateTime>("SelectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("PackageUnitId");
+
+                    b.HasIndex("IngredientCatalogId", "CreatedByUserId");
+
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("Cooking.Domain.Entities.Recipes.Complexity", b =>
@@ -1167,6 +1239,32 @@ namespace Cooking.Infrastructure.Migrations
                     b.Navigation("CreatedBySource");
 
                     b.Navigation("NutritionSource");
+                });
+
+            modelBuilder.Entity("Cooking.Domain.Entities.Ingredients.Product", b =>
+                {
+                    b.HasOne("Cooking.Domain.Entities.Users.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Cooking.Domain.Entities.Ingredients.IngredientCatalog", "IngredientCatalog")
+                        .WithMany()
+                        .HasForeignKey("IngredientCatalogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Cooking.Domain.Entities.Ingredients.MeasurementUnit", "PackageUnit")
+                        .WithMany()
+                        .HasForeignKey("PackageUnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("IngredientCatalog");
+
+                    b.Navigation("PackageUnit");
                 });
 
             modelBuilder.Entity("Cooking.Domain.Entities.Recipes.Recipe", b =>

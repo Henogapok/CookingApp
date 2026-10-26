@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Common.Interfaces;
 using Cooking.Application.Nutrition;
@@ -6,7 +5,6 @@ using Cooking.Application.Recipes;
 using Cooking.Application.Tags;
 using Cooking.Domain.Entities.Recipes;
 using Cooking.Domain.Entities.Tags;
-using Cooking.Domain.Entities.Users;
 using Cooking.Domain.ReferenceData;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
@@ -47,7 +45,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
             .Include(r => r.Ingredients)
             .Include(r => r.Steps)
             .Include(r => r.RecipeTags)
-            .Where(VisibleTo(user))
+            .Where(HouseholdAccess.Recipes(user))
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
         if (recipe is null)
@@ -76,7 +74,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
             return UserNotFound(userId);
 
         var recipe = await dataContext.Recipes
-            .Where(VisibleTo(user))
+            .Where(HouseholdAccess.Recipes(user))
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
         if (recipe is null)
@@ -99,7 +97,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
             return UserNotFound(userId);
 
         var row = await dataContext.Recipes
-            .Where(VisibleTo(user))
+            .Where(HouseholdAccess.Recipes(user))
             .Where(r => r.Id == id)
             .Select(r => new RecipeRow(
                 r.Id,
@@ -132,8 +130,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                         i.IngredientCatalog.CaloriesPer100g,
                         i.IngredientCatalog.ProteinPer100g,
                         i.IngredientCatalog.FatPer100g,
-                        i.IngredientCatalog.CarbsPer100g,
-                        i.IngredientCatalog.PricePer100g))
+                        i.IngredientCatalog.CarbsPer100g))
                     .ToList(),
                 r.Steps
                     .OrderBy(s => s.StepNumber)
@@ -145,7 +142,11 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                     .ToList()))
             .FirstOrDefaultAsync(cancellationToken);
 
-        return row is null ? RecipeNotFound(id) : Result.Ok(ToDto(row));
+        if (row is null)
+            return RecipeNotFound(id);
+
+        var products = await SelectedProducts.LoadAsync(dataContext, user, cancellationToken);
+        return Result.Ok(ToDto(row, products));
     }
 
     // КБЖУ считается в C# после загрузки (NutritionCalculator), поэтому сначала — плоские строки из БД.
@@ -163,12 +164,13 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         decimal Calories,
         decimal Protein,
         decimal Fat,
-        decimal Carbs,
-        decimal Price)
+        decimal Carbs)
     {
-        public IngredientAmount ToAmount() => new(
+        public IngredientAmount ToAmount(SelectedProduct? product) => new(
             Name, Amount, UnitId,
-            new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), Price));
+            NutritionCalculator.WithProduct(
+                new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), PricePer100: null),
+                product?.Values));
     }
 
     private sealed record RecipeRow(
@@ -190,15 +192,21 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         List<RecipeStepDto> Steps,
         List<TagDto> Tags);
 
-    private static RecipeDto ToDto(RecipeRow r)
+    private static RecipeDto ToDto(RecipeRow r, Dictionary<Guid, SelectedProduct> products)
     {
+        var amounts = r.Ingredients.Select(i => i.ToAmount(products.GetValueOrDefault(i.IngredientCatalogId))).ToList();
+
         var ingredients = r.Ingredients
-            .Select(i =>
+            .Select((i, index) =>
             {
-                var nutrition = NutritionCalculator.ForIngredient(i.ToAmount());
+                var product = products.GetValueOrDefault(i.IngredientCatalogId);
+                var nutrition = NutritionCalculator.ForIngredient(amounts[index]);
                 return new RecipeIngredientDto(
                     i.IngredientCatalogId, i.Name, i.Amount, i.UnitId, i.UnitName, i.UnitAbbreviation,
-                    i.IsNutritionEstimatedByLlm, nutrition.BaseAmount, i.BaseUnitAbbreviation, nutrition.Nutrition);
+                    // КБЖУ с упаковки продукта — уже не оценка ИИ.
+                    i.IsNutritionEstimatedByLlm && product?.Values.Per100 is null,
+                    nutrition.BaseAmount, i.BaseUnitAbbreviation, nutrition.Nutrition,
+                    product?.Id, product?.Name);
             })
             .ToList();
 
@@ -208,7 +216,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
             r.Servings, r.CookingTimeMinutes,
             r.CreatedByUserId, r.CreatedByFirstName, r.CreatedAt, r.UpdatedAt,
             ingredients, r.Steps, r.Tags,
-            NutritionCalculator.ForRecipe(r.Ingredients.Select(i => i.ToAmount()).ToList(), r.Servings));
+            NutritionCalculator.ForRecipe(amounts, r.Servings));
     }
 
     public async Task<Result<List<RecipeSummaryDto>>> GetAllAsync(Guid userId, string? search, CancellationToken cancellationToken)
@@ -218,7 +226,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         if (user is null)
             return UserNotFound(userId);
 
-        var query = dataContext.Recipes.Where(VisibleTo(user));
+        var query = dataContext.Recipes.Where(HouseholdAccess.Recipes(user));
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -241,6 +249,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                 r.CreatedAt,
                 r.Ingredients
                     .Select(i => new NutritionRow(
+                        i.IngredientCatalogId,
                         i.IngredientCatalog.Name,
                         i.Amount,
                         i.UnitId,
@@ -249,8 +258,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                         i.IngredientCatalog.CaloriesPer100g,
                         i.IngredientCatalog.ProteinPer100g,
                         i.IngredientCatalog.FatPer100g,
-                        i.IngredientCatalog.CarbsPer100g,
-                        i.IngredientCatalog.PricePer100g))
+                        i.IngredientCatalog.CarbsPer100g))
                     .ToList(),
                 r.RecipeTags
                     .OrderBy(rt => rt.Tag.Name)
@@ -258,11 +266,15 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                     .ToList()))
             .ToListAsync(cancellationToken);
 
+        var products = await SelectedProducts.LoadAsync(dataContext, user, cancellationToken);
+
         var recipes = rows
             .Select(r => new RecipeSummaryDto(
                 r.Id, r.Title, r.ComplexityName, r.Servings, r.CookingTimeMinutes,
                 r.CreatedByUserId, r.CreatedByFirstName, r.CreatedAt, r.Tags,
-                NutritionCalculator.ForRecipe(r.Ingredients.Select(i => i.ToAmount()).ToList(), r.Servings).PerServing))
+                NutritionCalculator.ForRecipe(
+                    r.Ingredients.Select(i => i.ToAmount(products.GetValueOrDefault(i.IngredientCatalogId))).ToList(),
+                    r.Servings).PerServing))
             .ToList();
 
         return Result.Ok(recipes);
@@ -270,6 +282,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
 
     // Для списка из каталога нужно только то, что идёт в расчёт КБЖУ, — без названий единиц и признаков LLM.
     private sealed record NutritionRow(
+        Guid IngredientCatalogId,
         string Name,
         decimal? Amount,
         Guid? UnitId,
@@ -278,12 +291,13 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         decimal Calories,
         decimal Protein,
         decimal Fat,
-        decimal Carbs,
-        decimal Price)
+        decimal Carbs)
     {
-        public IngredientAmount ToAmount() => new(
+        public IngredientAmount ToAmount(SelectedProduct? product) => new(
             Name, Amount, UnitId,
-            new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), Price));
+            NutritionCalculator.WithProduct(
+                new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), PricePer100: null),
+                product?.Values));
     }
 
     private sealed record RecipeSummaryRow(
@@ -297,16 +311,6 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         DateTime CreatedAt,
         List<NutritionRow> Ingredients,
         List<TagDto> Tags);
-
-    /// <summary>Рецепт виден автору и участникам его текущей семьи.</summary>
-    private static Expression<Func<Recipe, bool>> VisibleTo(User user)
-    {
-        var userId = user.Id;
-        var familyId = user.FamilyId;
-
-        return r => r.CreatedByUserId == userId
-                    || (familyId != null && r.CreatedByUser.FamilyId == familyId);
-    }
 
     /// <summary>Перезаписывает поля и дочерние коллекции рецепта значениями из fields.</summary>
     private static void ApplyFields(Recipe recipe, RecipeFields fields)

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Cooking** — личный кулинарный помощник. Telegram-бот + PWA. Изначально для автора и девушки, но бот можно расшарить друзьям: каждый пользователь самостоятельный, а семьи (Family) — группы, внутри которых рецепты общие.
 
-Ключевая ценность: закинул ссылку на Reels/текст рецепта → бот сам достаёт рецепт, структурирует его через LLM и считает КБЖУ/стоимость по каталогу ингредиентов.
+Ключевая ценность: закинул ссылку на Reels/текст рецепта → бот сам достаёт рецепт, структурирует его через LLM и считает КБЖУ по каталогу ингредиентов, а стоимость — по продуктам, которые покупает семья.
 
 ## Текущее состояние реализации
 
@@ -164,7 +164,7 @@ Controller (Api) / BotUpdateHandler (Bot)            — только перев
 - Ссылка на источник (URL видео или сайта)
 - КБЖУ (считается из каталога ингредиентов)
 - Теги (тип приёма, кухня, сложность, время готовки)
-- Стоимость (считается из каталога ингредиентов)
+- Стоимость (считается по продуктам семьи того, кто смотрит, — см. «Продукты»)
 - Масштабирование порций
 
 ### Поиск
@@ -183,7 +183,7 @@ Controller (Api) / BotUpdateHandler (Bot)            — только перев
 - Личное: избранное
 
 ### Справочник ингредиентов
-- Название, категория, КБЖУ на 100г, цена, единица измерения
+- Название, категория, КБЖУ на 100г, единица измерения — общий справочник для всех; цены в каталоге нет (она у продуктов)
 - Автозаполнение через LLM при парсинге рецепта
 - Два отдельных поля источника: кто создал запись (CreatedBySourceId) и откуда КБЖУ (NutritionSourceId)
 
@@ -196,7 +196,7 @@ Controller (Api) / BotUpdateHandler (Bot)            — только перев
 - Импорт/экспорт в JSON
 - Видимость рецепта (Private / Family / Public, справочник RecipeVisibility): владение (кто редактирует) ≠ видимость (кто видит)
 - Общий каталог публичных рецептов (база знаний для всех пользователей, с пагинацией), шаринг рецепта ссылкой, «скопировать себе»
-- Сканирование чека → цены (KZT) в каталог ингредиентов (см. идею в конце файла)
+- Сканирование чека → продукты семьи с ценами (KZT), купленный последним становится выбранным (см. идею в конце файла)
 - Текст на экране в Reels (рецепт только в титрах): кадры из видео → Claude vision
 - Inline-режим: `@бот запрос` в любом чате (нужен `IsPersonal = true`)
 - Фото рецептов. В DTO — только ссылка (`photoUrl`), файлы через JSON не ходят; картинки кэширует браузер (HTTP-кэш, позже Service Worker), не `localStorage`. Хранилище — за интерфейсом в Application (`IPhotoStorage`): сначала диск VPS на volume, отдаёт Caddy (`/media/…`), при необходимости — S3-совместимое (Vultr Object Storage) без изменения команд. Имена файлов — `{guid}.webp` (неугадываемые: `<img>` не шлёт Bearer, поэтому файлы публичные, а ссылку выдаёт только Api с проверкой прав) + `Cache-Control: immutable`, новое фото = новое имя. При загрузке — две версии: миниатюра ~400 px для списка/полок и крупная для страницы рецепта (ImageSharp/SkiaSharp). Обложку Reels (yt-dlp) скачиваем к себе — ссылки CDN Instagram протухают. В базе сначала `Recipe.PhotoPath` (string?), таблица `RecipePhoto` — если понадобится несколько фото или фото шагов
@@ -226,6 +226,8 @@ erDiagram
   IngredientCatalog }o--|| MeasurementUnit : base_unit
   IngredientCatalog }o--|| DataSource : created_by
   IngredientCatalog }o--|| DataSource : nutrition_from
+  IngredientCatalog ||--o{ Product : bought_as
+  User ||--o{ Product : creates
   Recipe }o--|| SourceType : source
   Recipe }o--|| Complexity : difficulty
 
@@ -288,7 +290,6 @@ erDiagram
     guid CategoryId FK
     guid BaseUnitId FK
     decimal PieceWeight "nullable, вес 1 шт"
-    decimal PricePer100g
     decimal CaloriesPer100g
     decimal ProteinPer100g
     decimal FatPer100g
@@ -394,13 +395,23 @@ erDiagram
 - CategoryId (Guid, FK → IngredientCategory)
 - BaseUnitId (Guid, FK → MeasurementUnit) — базовая единица для расчёта КБЖУ
 - PieceWeight (decimal?) — вес/объём 1 шт в базовой единице, чтобы пересчитать «2 шт» в граммы; null — штуками не считают
-- PricePer100g (decimal) — в тенге (KZT); у ингредиентов, созданных LLM, — 0 (вносится вручную)
 - CaloriesPer100g (decimal)
 - ProteinPer100g (decimal)
 - FatPer100g (decimal)
 - CarbsPer100g (decimal)
 - CreatedBySourceId (Guid, FK → DataSource) — кто создал запись (Manual, LLM, FatSecret)
 - NutritionSourceId (Guid, FK → DataSource) — откуда КБЖУ (Manual, LLM, FatSecret)
+- CreatedAt, UpdatedAt
+
+#### Product
+То, что семья реально покупает, для общего ингредиента («Lactel 3,2%» для «Молоко 3,2%»). Видят и правят автор и любой участник его семьи (как рецепты; вышел из семьи — продукты уходят с автором).
+- Id (Guid, PK)
+- CreatedByUserId (Guid, FK → User)
+- IngredientCatalogId (Guid, FK → IngredientCatalog, cascade delete)
+- Name (string, ≤ 100)
+- PackagePrice, PackageAmount (decimal?), PackageUnitId (Guid?, FK → MeasurementUnit: г, кг, мл, л, шт) — упаковка как на ценнике («520 ₸ · 1 л»), все три или ни одного; цена за 100 г не хранится, а считается (`NutritionCalculator.PricePer100`)
+- CaloriesPer100g, ProteinPer100g, FatPer100g, CarbsPer100g (decimal?) — КБЖУ с упаковки; null — из каталога
+- SelectedAt (DateTime) — для ингредиента в расчёт идёт видимый продукт с самым поздним SelectedAt; выбор/создание продукта ставит «сейчас» — действует на всю семью
 - CreatedAt, UpdatedAt
 
 #### RecipeIngredient
@@ -448,7 +459,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 
 - Все enums вынесены в отдельные справочные таблицы (не enum в коде)
 - Many-to-many для тегов через промежуточную таблицу RecipeTag — соблюдает 3НФ
-- КБЖУ и стоимость рецепта **не хранятся**, а считаются при каждом показе из IngredientCatalog по **сырой** массе: `количество в базовой единице × значение на 100 / 100` — изменение цены/КБЖУ/формулы сразу отражается во всех рецептах. Считает `Application/Nutrition/NutritionCalculator` (C#, а не VIEW в БД — чтобы тестировать и менять формулу в одном месте). Пересчёт единиц: г и мл 1:1 (плотности пока нет — если понадобится, добавить поле в каталог и учесть его в `ToBaseAmount`), ст.л. = 15, ч.л. = 5, стакан = 250, щепотка = 0.5, шт — через `PieceWeight`. «По вкусу» не считается; ингредиенты, которые не пересчитать (шт без веса), перечисляются как «не учтено». Показывается КБЖУ всего блюда и на порцию; на 100 г готового блюда — нет (нужен вес готового блюда, отложено)
+- КБЖУ и стоимость рецепта **не хранятся**, а считаются при каждом показе по **сырой** массе: `количество в базовой единице × значение на 100 / 100` — изменение цены/КБЖУ/формулы сразу отражается во всех рецептах. Источник — выбранный продукт семьи **того, кто смотрит** (`SelectedProducts` в Infrastructure, `NutritionCalculator.WithProduct`): его цена и КБЖУ с упаковки; нет продукта или своего КБЖУ — КБЖУ из каталога, цены нет (ингредиент перечисляется в `IngredientsWithoutPrice`, а не считается как 0). Так один и тот же рецепт у разных семей стоит по-разному. Считает `Application/Nutrition/NutritionCalculator` (C#, а не VIEW в БД — чтобы тестировать и менять формулу в одном месте). Пересчёт единиц: г и мл 1:1 (плотности пока нет — если понадобится, добавить поле в каталог и учесть его в `ToBaseAmount`), ст.л. = 15, ч.л. = 5, стакан = 250, щепотка = 0.5, кг и л = 1000, шт — через `PieceWeight`. «По вкусу» не считается; ингредиенты, которые не пересчитать (шт без веса), перечисляются как «не учтено». Показывается КБЖУ всего блюда и на порцию; на 100 г готового блюда — нет (нужен вес готового блюда, отложено)
 - Порции: пока одинаковые (`Servings`). Личный размер порции / вес готового блюда — отложено
 - Масштабирование порций — пересчёт на фронте, базовые Servings хранятся в Recipe
 - Долгая обработка (LLM, позже Reels) — в фоне через `IRecipeParsingQueue`, а не в обработчике апдейта: polling обрабатывает апдейты по одному, и 15 секунд LLM у одного пользователя задержали бы всех остальных
@@ -473,7 +484,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 3. `IRecipeTextParser` (реализация `ClaudeRecipeTextParser`, structured outputs) возвращает `ParsedRecipe` — имена и коды без наших Id. В промпт идут названия из каталога (чтобы не плодить дубли) и теги из базы (LLM выбирает только из них).
 4. `RecipeDraftMapper` (чистый, покрыт тестами) переводит ответ в `RecipeDraftContent`: ингредиент — либо Id из каталога (сравнение без регистра/пробелов, ё = е), либо данные нового ингредиента; неизвестные единицы/пустое количество → «по вкусу»; порции/время из текста и оценки ИИ хранятся отдельно.
 5. Итог уходит пользователю через `IRecipeDraftNotifier` (бот: `BotRecipeDraftNotifier` — превью с кнопками «Сохранить» / «Отмена» / «Оценить порции и время»; без бота — `NullRecipeDraftNotifier`).
-6. `ConfirmRecipeDraftCommand` — создаёт недостающие ингредиенты (`CreatedBySource = NutritionSource = LLM`, цена 0; в карточке помечены 🤖), сохраняет рецепт, удаляет черновик. До подтверждения ни в Recipe, ни в каталог ничего не пишется.
+6. `ConfirmRecipeDraftCommand` — создаёт недостающие ингредиенты (`CreatedBySource = NutritionSource = LLM`; в карточке помечены 🤖), сохраняет рецепт, удаляет черновик. До подтверждения ни в Recipe, ни в каталог ничего не пишется.
 
 8. Изменение сохранённого рецепта — `EditRecipeCommand` (доступ как на редактирование: автор и семья): черновик из рецепта (`RecipeDraftMapper.FromRecipe`, в `RecipeDraftContent.RecipeId` — ссылка на рецепт, источник сохраняется) сразу с правкой → дальше как п. 7; `ConfirmRecipeDraftCommand` для такого черновика вызывает `Update` вместо `Create`. В боте — кнопки под карточкой: «✏️ Изменить» (ForceReply «Что поменять?», Id рецепта в невидимой ссылке `https://recipe.invalid/{recipeId}`) и «🗑 Удалить» (только автору, с подтверждением; soft delete).
 - Несколько блюд в одном тексте (рацион дня, подборка, варианты начинок — каждый вариант отдельно; соус/гарнир — часть блюда): LLM отвечает `ParsedRecipes { Dishes, Recipes }`, каждое блюдо — свой черновик (первое — в исходный, остальные — `CreateSiblingAsync` с тем же текстом и ссылкой), в превью «Блюдо 2 из 3» (`RecipeDraftContent.DishNumber/DishCount`, правка их сохраняет). Блюд больше `RecipeDraftLimits.MaxDishes` (5) → LLM отдаёт только названия, черновик ждёт выбора (`RecipeDraft.DishChoicesJson`, `IRecipeDraftNotifier.DishChoiceRequiredAsync`); `SelectRecipeDraftDishesCommand` (`POST api/recipe-drafts/{id}/dishes`) → та же задача разбирает только выбранные (`SelectedDishesJson`). В боте выбор — кнопки ✅/⬜, отметки хранятся в самой клавиатуре (`BotKeyboards.ToggleDish`).
@@ -482,6 +493,14 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Настройки — секция `Anthropic` (`Model`, `Effort`, `MaxTokens`, `RefusalFallback`) в appsettings: модель меняется конфигом. Ключ — только `dotnet user-secrets set "Anthropic:ApiKey" "<key>" --project src/Cooking.Api` (прод: `Anthropic__ApiKey`). Без ключа Api стартует, а разбор отвечает «не настроен».
 7. Правка — `CorrectRecipeDraftCommand`: текст правки пишется в `RecipeDraft.PendingCorrection`, в очередь уходит та же `RecipeParsingJob(DraftId)`. `ParseRecipeDraftCommand` видит правку и отправляет LLM исходный текст + текущую версию (`RecipeDraftMapper.ToCorrectionJson`) + правку; ответ проходит тот же маппер. Пока правка не применена, черновик нельзя сохранить/оценить/править повторно (LogicConflict), но можно показать. Неудачная правка черновик не удаляет — остаётся прежняя версия (`IRecipeDraftNotifier.DraftCorrectionFailedAsync`).
 - В боте правка — ответ (reply) на сообщение с превью: Id черновика бот достаёт из кнопок превью, которые Telegram присылает вместе с `reply_to_message` (`BotCallbacks.FindDraftId`) — состояние не хранится. Старое превью редактируется в «✏️ Применяю правку…» без кнопок. Кнопка «✏️ Исправить» присылает «Что поправить?» с ForceReply; Id черновика и превью спрятаны в невидимой ссылке `https://draft.invalid/{draftId}/{previewMessageId}` (`BotCallbacks.DraftEditLink`), которую Telegram тоже возвращает в `reply_to_message`.
+
+## Продукты (цена и КБЖУ своего)
+
+Ингредиент (каталог) — общий справочник КБЖУ для всех; продукт (`Product`) — что покупает семья, с ценой упаковки и, по желанию, КБЖУ с упаковки. Рецепты ссылаются на ингредиенты, поэтому рецепт друга без копирования считается по вашим продуктам. Макеты экранов — канвас «Макеты Cooking» (рецепт: продукт у каждого ингредиента с выбором; «Мои продукты»; форма продукта).
+
+- Логика — `Application/Products/` (`IProductRepositoryService`), Api — `ProductsController`: `GET api/products` (ингредиенты из рецептов семьи и с продуктами семьи: число рецептов, КБЖУ каталога, продукты, какой выбран, цена за 100), `POST`, `PUT {id}` (ингредиент продукта не меняется), `DELETE {id}`, `POST {id}/select`. Чужой продукт — NotFound.
+- Упаковка «шт» допустима, только если у ингредиента известен вес штуки (иначе цену за 100 г не посчитать — Validation).
+- В `RecipeIngredientDto` — `ProductId`/`ProductName` выбранного продукта; превью черновика в боте считается по продуктам его автора.
 
 ## Рецепты из Instagram Reels
 
@@ -510,7 +529,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Таблицы OpenIddict — в `CookingDbContext` (`modelBuilder.UseOpenIddict()`), миграции общие. Миграции при старте применяют оба сервиса — под advisory lock Postgres (`MigrateDatabaseAsync`).
 - Access token — подписанный JWT без шифрования (`DisableAccessTokenEncryption`), иначе Api его не прочитает. При выдаче и при обновлении по refresh-токену пользователь перечитывается из базы.
 - Api: `[Authorize]` на `BaseController` (открыт только health check), `CurrentUserId` из claim `sub`; `UserId` в запросах больше нет.
-- **Роли** — глобальные, константы `Application/Users/UserRoles` (пока одна: `admin`). Auth кладёт claim `role` в access token при каждой выдаче и обновлении (`UserPrincipalFactory.GetRoles`); админы — Telegram Id в `Admin:TelegramIds` (локально — `dotnet user-secrets set "Admin:TelegramIds:0" "<id>" --project src/Cooking.Auth`, прод — GitHub Secret `ADMIN_TELEGRAM_ID`). Api проверяет не роли, а политики (`Api/Authorization/Policies`): контроллер пишет `[Authorize(Policy = Policies.ManageReferenceData)]`, а кому это можно — решает только определение политики. Запись в справочники и каталог ингредиентов — только `ManageReferenceData` (admin), чтение — всем. Исключение — `ConfirmRecipeDraftCommand`: при сохранении рецепта любой пользователь добавляет в каталог *новые* ингредиенты (помечены LLM, цена 0), существующие не меняет. Политики стоят на контроллерах, команды роли не проверяют — бот и фоновые задачи команды справочников не вызывают. Права на конкретные записи (рецепт, семья) — не роли, их проверяют репозитории. `GET api/users/me` — текущий пользователь. Swagger: кнопка Authorize → вход через Auth (клиент `cooking-swagger`).
+- **Роли** — глобальные, константы `Application/Users/UserRoles` (пока одна: `admin`). Auth кладёт claim `role` в access token при каждой выдаче и обновлении (`UserPrincipalFactory.GetRoles`); админы — Telegram Id в `Admin:TelegramIds` (локально — `dotnet user-secrets set "Admin:TelegramIds:0" "<id>" --project src/Cooking.Auth`, прод — GitHub Secret `ADMIN_TELEGRAM_ID`). Api проверяет не роли, а политики (`Api/Authorization/Policies`): контроллер пишет `[Authorize(Policy = Policies.ManageReferenceData)]`, а кому это можно — решает только определение политики. Запись в справочники и каталог ингредиентов — только `ManageReferenceData` (admin), чтение — всем. Исключение — `ConfirmRecipeDraftCommand`: при сохранении рецепта любой пользователь добавляет в каталог *новые* ингредиенты (помечены LLM), существующие не меняет. Политики стоят на контроллерах, команды роли не проверяют — бот и фоновые задачи команды справочников не вызывают. Права на конкретные записи (рецепт, семья) — не роли, их проверяют репозитории. `GET api/users/me` — текущий пользователь. Swagger: кнопка Authorize → вход через Auth (клиент `cooking-swagger`).
 - IdentityModel в Api закреплён на одной версии 8.x: JwtBearer 8.0 тянет 7.x, OpenIddict — 8.x, смесь падает в рантайме.
 - **Вход через бота** (по схеме Device Flow): `/login` → `BotLoginService` (Auth без MediatR: вызывает `ILoginRequestRepositoryService`/`IUserRepositoryService` напрямую и сам пишет логи входа и выдачи токенов, без секретов) → ссылка `t.me/<bot>?start=login_<Code>` + секрет браузера (PollToken) в HttpOnly cookie, в базе только SHA-256. Бот на `/start login_<Code>` спрашивает «Войти?» (ссылку мог прислать чужой) → `ConfirmLoginRequestCommand` / `DeclineLoginRequestCommand`. Страница опрашивает `/login/bot/poll` (`CompleteAsync`; ожидание — в лог на Debug) и после подтверждения открывает сессию Auth. Код из ссылки без PollToken войти не даёт; запрос живёт 5 минут, одноразовый.
 - Локально: сертификаты подписи — dev-сертификаты OpenIddict (хранилище пользователя Windows). Auth нужен токен того же dev-бота (для username в ссылке): `dotnet user-secrets set "Telegram:BotToken" "<token>" --project src/Cooking.Auth` (или `Telegram:BotUsername`). Api: `Auth:Authority = https://localhost:7271/`.

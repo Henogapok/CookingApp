@@ -175,10 +175,10 @@ public class RecipeDraftMapperTests
         var recipe = new RecipeDto(
             Guid.NewGuid(), "Омлет", null, "https://example.com", ReferenceIds.SourceTypes.Website, "Website",
             ReferenceIds.Complexities.Easy, "Easy", 2, 10, Guid.NewGuid(), "Аня", DateTime.UtcNow, DateTime.UtcNow,
-            [new RecipeIngredientDto(ChickenId, "Яйцо", 3, ReferenceIds.MeasurementUnits.Piece, "Штука", "шт", false, 165, "г", null)],
+            [new RecipeIngredientDto(ChickenId, "Яйцо", 3, ReferenceIds.MeasurementUnits.Piece, "Штука", "шт", false, 165, "г", null, null, null)],
             [new RecipeStepDto(1, "Взбить", null)],
             [new Cooking.Application.Tags.TagDto(DinnerTagId, "Ужин", Guid.NewGuid(), "MealType")],
-            new Cooking.Application.Nutrition.RecipeNutrition(Cooking.Application.Nutrition.NutritionFacts.Zero, null, 0, 0, 0, []));
+            new Cooking.Application.Nutrition.RecipeNutrition(Cooking.Application.Nutrition.NutritionFacts.Zero, null, 0, 0, [], []));
 
         var content = RecipeDraftMapper.FromRecipe(recipe);
 

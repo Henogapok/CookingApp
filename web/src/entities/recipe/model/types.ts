@@ -50,6 +50,9 @@ export interface RecipeIngredient {
   baseAmount: number | null;
   baseUnitAbbreviation: string;
   nutrition: NutritionFacts | null;
+  /** Продукт семьи, по которому посчитаны цена и КБЖУ; null — продукта нет (КБЖУ из каталога, без цены). */
+  productId: string | null;
+  productName: string | null;
 }
 
 export interface RecipeStep {
@@ -64,9 +67,10 @@ export interface RecipeNutrition {
   /** null — число порций неизвестно. */
   perServing: NutritionFacts | null;
   countedIngredients: number;
-  /** ₸, только ингредиенты с известной ценой. */
+  /** ₸ по продуктам того, кто смотрит; только ингредиенты с известной ценой. */
   cost: number;
-  ingredientsWithoutPrice: number;
+  /** Ингредиенты без цены: нет продукта или у продукта не указана цена. */
+  ingredientsWithoutPrice: string[];
   /** Ингредиенты, которые не перевести в граммы (например, «шт» без веса штуки). */
   notCounted: string[];
 }

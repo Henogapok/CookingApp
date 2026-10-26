@@ -4,7 +4,6 @@ public record IngredientCatalogRequest(
     string Name,
     Guid CategoryId,
     Guid BaseUnitId,
-    decimal PricePer100G,
     decimal CaloriesPer100G,
     decimal ProteinPer100G,
     decimal FatPer100G,

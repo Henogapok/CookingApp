@@ -14,7 +14,7 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         e.Id, e.Name,
         e.CategoryId, e.Category.Name,
         e.BaseUnitId, e.BaseUnit.Name, e.BaseUnit.Abbreviation,
-        e.PricePer100g, e.CaloriesPer100g, e.ProteinPer100g, e.FatPer100g, e.CarbsPer100g,
+        e.CaloriesPer100g, e.ProteinPer100g, e.FatPer100g, e.CarbsPer100g,
         e.CreatedBySourceId, e.CreatedBySource.Name,
         e.NutritionSourceId, e.NutritionSource.Name,
         e.PieceWeight);
@@ -30,7 +30,6 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
             Name = fields.Name,
             CategoryId = fields.CategoryId,
             BaseUnitId = fields.BaseUnitId,
-            PricePer100g = fields.PricePer100G,
             CaloriesPer100g = fields.CaloriesPer100G,
             ProteinPer100g = fields.ProteinPer100G,
             FatPer100g = fields.FatPer100G,
@@ -60,7 +59,6 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         entity.Name = fields.Name;
         entity.CategoryId = fields.CategoryId;
         entity.BaseUnitId = fields.BaseUnitId;
-        entity.PricePer100g = fields.PricePer100G;
         entity.CaloriesPer100g = fields.CaloriesPer100G;
         entity.ProteinPer100g = fields.ProteinPer100G;
         entity.FatPer100g = fields.FatPer100G;

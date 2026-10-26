@@ -13,6 +13,8 @@ const ingredient = (overrides: Partial<RecipeIngredient>): RecipeIngredient => (
   baseAmount: 120,
   baseUnitAbbreviation: 'г',
   nutrition: null,
+  productId: null,
+  productName: null,
   ...overrides,
 });
 
