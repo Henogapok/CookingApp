@@ -13,5 +13,11 @@ public class User : BaseEntity
     public Guid? FamilyId { get; set; }
     public Family? Family { get; set; }
 
+    /// <summary>
+    /// Тема PWA (id темы или «auto»), чтобы она совпадала на телефоне и компьютере. null — пользователь ещё ни разу
+    /// не выбирал: тогда PWA отправляет свой локальный выбор, а не сбрасывает его. Список тем знает только PWA.
+    /// </summary>
+    public string? Theme { get; set; }
+
     public ICollection<Recipe> CreatedRecipes { get; set; } = new List<Recipe>();
 }

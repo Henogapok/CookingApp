@@ -12,7 +12,7 @@ public class UserRepositoryService(IDataContext dataContext) : IUserRepositorySe
 {
     private static readonly Expression<Func<User, UserDto>> ProjectToDto = e => new UserDto(
         e.Id, e.TelegramId, e.FirstName, e.LastName,
-        e.FamilyId, e.Family == null ? null : e.Family.Name);
+        e.FamilyId, e.Family == null ? null : e.Family.Name, e.Theme);
 
     public async Task<Result<UserDto>> RegisterAsync(long telegramId, string firstName, string? lastName, CancellationToken cancellationToken)
     {
@@ -57,6 +57,19 @@ public class UserRepositoryService(IDataContext dataContext) : IUserRepositorySe
         return dto is null
             ? Result.Fail(new AppError($"User with TelegramId '{telegramId}' was not found.", ErrorCode.NotFound))
             : Result.Ok(dto);
+    }
+
+    public async Task<Result> SetThemeAsync(Guid userId, string theme, CancellationToken cancellationToken)
+    {
+        var entity = await dataContext.Users.FindAsync([userId], cancellationToken);
+
+        if (entity is null)
+            return Result.Fail(new AppError($"User with id '{userId}' was not found.", ErrorCode.NotFound));
+
+        entity.Theme = theme;
+        await dataContext.SaveChangesAsync(cancellationToken);
+
+        return Result.Ok();
     }
 
     public async Task<Result<List<UserDto>>> GetAllAsync(CancellationToken cancellationToken)
