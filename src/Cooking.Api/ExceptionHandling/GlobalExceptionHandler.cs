@@ -18,10 +18,10 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IE
         var (statusCode, title) = exception switch
         {
             DbUpdateException { InnerException: PostgresException { SqlState: PostgresUniqueViolationSqlState } } =>
-                (StatusCodes.Status409Conflict, "A record with the same unique value already exists."),
+                (StatusCodes.Status409Conflict, "Такая запись уже есть"),
             DbUpdateException { InnerException: PostgresException { SqlState: PostgresForeignKeyViolationSqlState } } =>
-                (StatusCodes.Status409Conflict, "This record is still referenced by other data and can't be deleted."),
-            _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.")
+                (StatusCodes.Status409Conflict, "Запись используется другими данными, удалить нельзя"),
+            _ => (StatusCodes.Status500InternalServerError, "Что-то пошло не так. Попробуйте ещё раз")
         };
 
         httpContext.Response.StatusCode = statusCode;
