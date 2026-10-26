@@ -185,13 +185,14 @@ public class ParseRecipeDraftCommandHandler(
     {
         string? caption;
         string? transcript;
+        Result? transcriptionError = null;
 
         if (source.MediaFilePath is { } mediaFile)
         {
             caption = source.SourceText;
             try
             {
-                transcript = await TranscribeAsync(mediaFile, cancellationToken);
+                (transcript, transcriptionError) = await TranscribeAsync(mediaFile, cancellationToken);
             }
             finally
             {
@@ -206,7 +207,10 @@ public class ParseRecipeDraftCommandHandler(
 
             using var _ = video.Value;
             caption = video.Value.Caption;
-            transcript = video.Value.AudioFilePath is { } audio ? await TranscribeAsync(audio, cancellationToken) : null;
+            if (video.Value.AudioFilePath is { } audio)
+                (transcript, transcriptionError) = await TranscribeAsync(audio, cancellationToken);
+            else
+                transcript = null;
         }
         else
         {
@@ -214,15 +218,20 @@ public class ParseRecipeDraftCommandHandler(
             transcript = null;
         }
 
-        return RecipeSourceText.Build(caption, transcript) is { } text
-            ? (text, default)
+        if (RecipeSourceText.Build(caption, transcript) is { } text)
+            return (text, default);
+
+        // Текста нет: если речь не расшифровалась — это сбой сервиса, а не «в видео нет слов».
+        return transcriptionError is { } error
+            ? (null, (RecipeDraftFailureReason.TranscriptionFailed, error))
             : (null, (RecipeDraftFailureReason.NoTextInVideo, Result.Ok())); // не ошибка сервиса — просто нечего разбирать
     }
 
-    private async Task<string?> TranscribeAsync(string mediaFile, CancellationToken cancellationToken)
+    /// <summary>Сбой расшифровки не обрывает разбор (хватит описания), но запоминается — для честного ответа.</summary>
+    private async Task<(string? Transcript, Result? Error)> TranscribeAsync(string mediaFile, CancellationToken cancellationToken)
     {
         var transcript = await speechToText.TranscribeAsync(mediaFile, cancellationToken);
-        return transcript.IsSuccess ? transcript.Value : null;
+        return transcript.IsSuccess ? (transcript.Value, null) : (null, transcript.ToResult());
     }
 
     private static void TryDelete(string path)

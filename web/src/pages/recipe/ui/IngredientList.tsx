@@ -1,23 +1,11 @@
-import { formatAmount, type RecipeIngredient } from '@/entities/recipe';
+import type { RecipeIngredient } from '@/entities/recipe';
+import { formatQuantity } from '../lib/formatQuantity';
 import styles from './IngredientList.module.css';
 
 interface IngredientListProps {
   ingredients: RecipeIngredient[];
   /** Во сколько раз изменили порции — количества умножаются на него. */
   factor: number;
-}
-
-/** «300 г», «2 шт ≈ 240 г» (вес — когда единица не граммы/мл), «по вкусу». */
-function formatQuantity(ingredient: RecipeIngredient, factor: number): { main: string; base: string | null } {
-  if (ingredient.amount === null) return { main: 'по вкусу', base: null };
-
-  const main = `${formatAmount(ingredient.amount * factor)} ${ingredient.unitAbbreviation ?? ''}`.trim();
-  const base =
-    ingredient.baseAmount !== null && ingredient.unitAbbreviation !== ingredient.baseUnitAbbreviation
-      ? `≈ ${formatAmount(ingredient.baseAmount * factor)} ${ingredient.baseUnitAbbreviation}`
-      : null;
-
-  return { main, base };
 }
 
 export function IngredientList({ ingredients, factor }: IngredientListProps) {

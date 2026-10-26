@@ -52,6 +52,14 @@ public interface IRecipeDraftRepositoryService
     /// <summary>Для фонового разбора: правку применить не удалось — черновик остаётся прежним.</summary>
     Task ClearCorrectionAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Отмечает, что черновик сохраняется в рецепт. LogicConflict — его уже сохраняют (второе нажатие «Сохранить»).
+    /// </summary>
+    Task<Result> StartConfirmationAsync(Guid id, Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>Сохранить не удалось — снимает отметку, черновик можно сохранить снова.</summary>
+    Task CancelConfirmationAsync(Guid id, CancellationToken cancellationToken);
+
     Task<Result<RecipeDraftContent>> GetContentAsync(Guid id, Guid userId, CancellationToken cancellationToken);
 
     Task<Result<RecipeDraftDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken);

@@ -3,4 +3,5 @@ using MediatR;
 
 namespace Cooking.Application.Families.Queries;
 
-public record GetFamilyByIdQuery(Guid Id) : IRequest<Result<FamilyDto>>;
+/// <summary>Семья с участниками — только для её участника; остальным NotFound.</summary>
+public record GetFamilyByIdQuery(Guid Id, Guid UserId) : IRequest<Result<FamilyDto>>;

@@ -46,6 +46,13 @@ public class RecipeDraft : BaseEntity
     /// <summary>Выбранные пользователем блюда (JSON-массив названий) — фоновый разбор берёт только их.</summary>
     public string? SelectedDishesJson { get; set; }
 
+    /// <summary>
+    /// Когда начали сохранять черновик в рецепт. Не null — второе «Сохранить» (двойное нажатие, webhook обрабатывает
+    /// апдейты параллельно) получает отказ, а не создаёт второй рецепт. Это ещё и concurrency token: из двух
+    /// одновременных попыток отметку поставит только одна.
+    /// </summary>
+    public DateTime? ConfirmingAt { get; set; }
+
     /// <summary>После этого момента черновик нельзя сохранить; просроченные удаляются.</summary>
     public DateTime ExpiresAt { get; set; }
 }

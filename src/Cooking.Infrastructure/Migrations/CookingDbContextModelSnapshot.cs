@@ -372,6 +372,10 @@ namespace Cooking.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ConfirmingAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ContentJson")
                         .HasColumnType("jsonb");
 

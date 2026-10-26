@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  mealGroups,
   RecipeTile,
   RecipeTileSkeleton,
   type MealGroup,
@@ -49,7 +50,8 @@ export function DesktopShowcase({
 }: DesktopShowcaseProps) {
   const collapsed = useCollapseOnScroll();
   const isSearching = query.trim() !== '';
-  const openedGroup = shelves.find((shelf) => shelf.group.id === group)?.group;
+  // Из всех групп, а не из полок: пустой группы среди полок нет, а заголовок нужен и для неё (?group= из ссылки).
+  const openedGroup = mealGroups.find((mealGroup) => mealGroup.id === group);
 
   let content = status;
   if (!content && (isSearching || group !== 'all')) {

@@ -10,6 +10,11 @@ public class RecipeFieldsValidator : AbstractValidator<RecipeFields>
         RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Description).MaximumLength(2000);
         RuleFor(x => x.SourceUrl).MaximumLength(2048);
+        // Ссылка попадает в href (PWA, карточка в Telegram): javascript:/data: и битый адрес не пускаем.
+        RuleFor(x => x.SourceUrl)
+            .Must(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            .When(x => !string.IsNullOrEmpty(x.SourceUrl))
+            .WithMessage("SourceUrl must be an absolute http(s) URL.");
         RuleFor(x => x.SourceTypeId).NotEmpty();
         RuleFor(x => x.ComplexityId).NotEmpty();
         RuleFor(x => x.Servings).GreaterThanOrEqualTo(1).When(x => x.Servings is not null);
