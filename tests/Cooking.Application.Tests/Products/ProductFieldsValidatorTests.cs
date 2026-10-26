@@ -51,8 +51,21 @@ public class ProductFieldsValidatorTests
     }
 
     [Fact]
-    public void MacrosOver100Grams_FailsValidation()
+    public void HoneyPer100Ml_PassesValidation()
     {
-        Assert.False(Validator.Validate(Valid with { ProteinPer100G = 40, FatPer100G = 40, CarbsPer100G = 30 }).IsValid);
+        // Мёд: ~110 г углеводов на 100 мл — для мл это нормально, «Б+Ж+У ≤ 100» проверяется только для граммов.
+        Assert.True(Validator.Validate(Valid with { CaloriesPer100G = 450, ProteinPer100G = 1, FatPer100G = 0, CarbsPer100G = 110 }).IsValid);
+    }
+
+    [Fact]
+    public void PackageAmountWithGramPrecision_PassesValidation()
+    {
+        Assert.True(Validator.Validate(Valid with { PackageAmount = 0.125m, PackageUnitId = ReferenceIds.MeasurementUnits.Kilogram }).IsValid);
+    }
+
+    [Fact]
+    public void PackageAmountFinerThanStored_FailsValidation()
+    {
+        Assert.False(Validator.Validate(Valid with { PackageAmount = 0.1234m }).IsValid);
     }
 }

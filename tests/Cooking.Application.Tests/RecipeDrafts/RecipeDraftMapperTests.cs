@@ -170,6 +170,17 @@ public class RecipeDraftMapperTests
     }
 
     [Fact]
+    public void ToCorrectionJson_KilogramsAndLiters_KeepTheirCodes()
+    {
+        var content = Map(Parsed([Ingredient("Картофель", 1, "kg"), Ingredient("Молоко", 0.5m, "l")]));
+
+        var json = RecipeDraftMapper.ToCorrectionJson(content, new Dictionary<Guid, string>());
+
+        Assert.Contains("\"name\":\"Картофель\",\"amount\":1,\"unit\":\"kg\"", json);
+        Assert.Contains("\"name\":\"Молоко\",\"amount\":0.5,\"unit\":\"l\"", json);
+    }
+
+    [Fact]
     public void FromRecipe_KeepsIngredientsStepsTagsAndLinkToRecipe()
     {
         var recipe = new RecipeDto(

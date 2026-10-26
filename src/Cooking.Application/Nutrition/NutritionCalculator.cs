@@ -2,45 +2,6 @@ using Cooking.Domain.ReferenceData;
 
 namespace Cooking.Application.Nutrition;
 
-/// <summary>КБЖУ: ккал, белки, жиры, углеводы (г).</summary>
-public record NutritionFacts(decimal Calories, decimal Protein, decimal Fat, decimal Carbs)
-{
-    public static readonly NutritionFacts Zero = new(0, 0, 0, 0);
-
-    public static NutritionFacts operator +(NutritionFacts a, NutritionFacts b) =>
-        new(a.Calories + b.Calories, a.Protein + b.Protein, a.Fat + b.Fat, a.Carbs + b.Carbs);
-
-    public NutritionFacts Scale(decimal factor) =>
-        new(Calories * factor, Protein * factor, Fat * factor, Carbs * factor);
-}
-
-/// <summary>
-/// Данные ингредиента, нужные для расчёта: из каталога, а с выбранным продуктом — его КБЖУ и цена
-/// (<see cref="NutritionCalculator.WithProduct"/>). Per100 и PricePer100 — на 100 базовых единиц; PricePer100 = null — цены нет.
-/// </summary>
-public record IngredientNutritionSource(Guid BaseUnitId, decimal? PieceWeight, NutritionFacts Per100, decimal? PricePer100);
-
-/// <summary>Выбранный продукт ингредиента: упаковка как на ценнике и КБЖУ с упаковки (null — из каталога).</summary>
-public record ProductValues(decimal? PackagePrice, decimal? PackageAmount, Guid? PackageUnitId, NutritionFacts? Per100);
-
-/// <summary>Строка рецепта: сколько и в чём. Amount/UnitId = null — «по вкусу».</summary>
-public record IngredientAmount(string Name, decimal? Amount, Guid? UnitId, IngredientNutritionSource Source);
-
-/// <param name="BaseAmount">Количество в базовой единице ингредиента (г или мл); null — «по вкусу» или не пересчитать.</param>
-public record IngredientNutrition(decimal? BaseAmount, NutritionFacts? Nutrition);
-
-/// <param name="PerServing">null, если число порций неизвестно.</param>
-/// <param name="Cost">Стоимость ингредиентов с известной ценой, ₸.</param>
-/// <param name="IngredientsWithoutPrice">Учтённые ингредиенты без цены: нет выбранного продукта или у продукта не указана цена.</param>
-/// <param name="NotCounted">Ингредиенты с количеством, которое не удалось перевести в г/мл (например, «шт» без веса штуки).</param>
-public record RecipeNutrition(
-    NutritionFacts Total,
-    NutritionFacts? PerServing,
-    int CountedIngredients,
-    decimal Cost,
-    List<string> IngredientsWithoutPrice,
-    List<string> NotCounted);
-
 /// <summary>
 /// КБЖУ и стоимость по сырым продуктам: amount × значение на 100 базовых единиц / 100.
 /// Ничего не хранится — считается при каждом показе, поэтому смена формулы сразу отражается во всех рецептах.
@@ -90,6 +51,20 @@ public static class NutritionCalculator
 
         return ToBaseAmount(product.PackageAmount, product.PackageUnitId, ingredient) is { } amount and > 0
             ? price / amount * 100
+            : null;
+    }
+
+    /// <summary>Почему упаковку продукта нельзя перевести в базовую единицу ингредиента; null — можно (или упаковки нет).</summary>
+    public static string? PackageProblem(ProductValues product, IngredientNutritionSource ingredient)
+    {
+        if (product.PackageAmount is null)
+            return null;
+
+        if (ingredient.BaseUnitId != ReferenceIds.MeasurementUnits.Gram && ingredient.BaseUnitId != ReferenceIds.MeasurementUnits.Milliliter)
+            return "Prices are supported only for ingredients measured in grams or milliliters.";
+
+        return ToBaseAmount(product.PackageAmount, product.PackageUnitId, ingredient) is null
+            ? "A package in pieces needs the ingredient's piece weight in the catalog."
             : null;
     }
 

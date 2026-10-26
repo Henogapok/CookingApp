@@ -16,7 +16,7 @@ public class ProductConfiguration : BaseEntityConfiguration<Product>
             .HasMaxLength(100);
 
         builder.Property(x => x.PackagePrice).HasPrecision(12, 2);
-        builder.Property(x => x.PackageAmount).HasPrecision(10, 2);
+        builder.Property(x => x.PackageAmount).HasPrecision(12, 3);
         builder.Property(x => x.CaloriesPer100g).HasPrecision(10, 2);
         builder.Property(x => x.ProteinPer100g).HasPrecision(10, 2);
         builder.Property(x => x.FatPer100g).HasPrecision(10, 2);

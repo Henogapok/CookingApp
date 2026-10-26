@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Common.Interfaces;
 using Cooking.Application.Ingredients;
+using Cooking.Application.Nutrition;
 using Cooking.Domain.Entities.Ingredients;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,17 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         var fkCheck = await ValidateForeignKeysAsync(fields, cancellationToken);
         if (fkCheck.IsFailed)
             return fkCheck;
+
+        // Смена базовой единицы или веса штуки молча лишила бы цены продукты семей с упаковкой «шт» или любой упаковкой
+        // у ингредиента не в г/мл — такую правку не пускаем, пока эти продукты есть.
+        var source = new IngredientNutritionSource(fields.BaseUnitId, fields.PieceWeight, NutritionFacts.Zero, PricePer100: null);
+        var packages = await dataContext.Products
+            .Where(p => p.IngredientCatalogId == id && p.PackageAmount != null)
+            .Select(p => new ProductValues(p.PackagePrice, p.PackageAmount, p.PackageUnitId, null))
+            .ToListAsync(cancellationToken);
+        if (packages.Any(p => NutritionCalculator.PackageProblem(p, source) is not null))
+            return Result.Fail(new AppError(
+                "Products of this ingredient have packages that would no longer convert to its base unit.", ErrorCode.LogicConflict));
 
         entity.Name = fields.Name;
         entity.CategoryId = fields.CategoryId;

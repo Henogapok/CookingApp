@@ -1,4 +1,5 @@
 using Cooking.Application.Common.Errors;
+using Cooking.Application.Ingredients;
 using Cooking.Application.Products;
 using Cooking.Domain.Entities.Ingredients;
 using Cooking.Domain.Entities.Recipes;
@@ -222,6 +223,49 @@ public class ProductRepositoryServiceTests
         var result = await repository.CreateAsync(s.IvanId, Fields(s.CarrotId, "С рынка", 300, 5, Piece), CancellationToken.None);
 
         AssertError(result, ErrorCode.Validation);
+    }
+
+    [Fact]
+    public async Task CreateAsync_MacrosOver100PerGram_FailsValidation()
+    {
+        await using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var repository = new ProductRepositoryService(context);
+        var fields = Fields(s.RiceId, "Алтын") with { CaloriesPer100G = 400, ProteinPer100G = 40, FatPer100G = 40, CarbsPer100G = 30 };
+
+        var result = await repository.CreateAsync(s.IvanId, fields, CancellationToken.None);
+
+        AssertError(result, ErrorCode.Validation);
+    }
+
+    [Fact]
+    public async Task CreateAsync_MacrosOver100PerMilliliter_Allowed()
+    {
+        await using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var repository = new ProductRepositoryService(context);
+        var fields = Fields(s.MilkId, "Сгущёнка") with { CaloriesPer100G = 420, ProteinPer100G = 9, FatPer100G = 11, CarbsPer100G = 85 };
+
+        var result = await repository.CreateAsync(s.IvanId, fields, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task CatalogUpdate_RemovingPieceWeightUsedByPackages_ReturnsLogicConflict()
+    {
+        await using var context = CreateContext();
+        var s = await SeedAsync(context);
+        await new ProductRepositoryService(context).CreateAsync(s.IvanId, Fields(s.EggsId, "Казгер С0", 950, 10, Piece), CancellationToken.None);
+        var eggs = await context.IngredientCatalog.SingleAsync(i => i.Id == s.EggsId);
+        var fields = new IngredientCatalogFields(
+            eggs.Name, eggs.CategoryId, eggs.BaseUnitId, eggs.CaloriesPer100g, eggs.ProteinPer100g, eggs.FatPer100g, eggs.CarbsPer100g,
+            eggs.CreatedBySourceId, eggs.NutritionSourceId, PieceWeight: null);
+
+        var result = await new IngredientCatalogRepositoryService(context).UpdateAsync(s.EggsId, fields, CancellationToken.None);
+
+        AssertError(result, ErrorCode.LogicConflict);
+        Assert.Equal(55, (await context.IngredientCatalog.SingleAsync(i => i.Id == s.EggsId)).PieceWeight);
     }
 
     [Fact]

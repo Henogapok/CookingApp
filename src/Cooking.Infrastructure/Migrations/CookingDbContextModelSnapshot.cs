@@ -317,8 +317,8 @@ namespace Cooking.Infrastructure.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<decimal?>("PackageAmount")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("numeric(10,2)");
+                        .HasPrecision(12, 3)
+                        .HasColumnType("numeric(12,3)");
 
                     b.Property<decimal?>("PackagePrice")
                         .HasPrecision(12, 2)
