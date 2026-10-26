@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
 using System.Security.Claims;
 using Cooking.Application.Users;
+using Cooking.Auth.Options;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
@@ -23,8 +25,8 @@ public static class UserPrincipalFactory
         return new ClaimsPrincipal(identity);
     }
 
-    /// <summary>Пользователь для токенов с запрошенными клиентом scope'ами.</summary>
-    public static ClaimsPrincipal CreateForTokens(UserDto user, IEnumerable<string> scopes)
+    /// <summary>Пользователь для токенов с запрошенными клиентом scope'ами; роли (<see cref="UserRoles"/>) — только в access token.</summary>
+    public static ClaimsPrincipal CreateForTokens(UserDto user, IEnumerable<string> scopes, IEnumerable<string> roles)
     {
         var identity = new ClaimsIdentity(TokenValidationParameters.DefaultAuthenticationType, Claims.Name, Claims.Role);
         identity.SetClaim(Claims.Subject, user.Id.ToString());
@@ -32,6 +34,7 @@ public static class UserPrincipalFactory
         identity.SetClaim(Claims.GivenName, user.FirstName);
         identity.SetClaim(Claims.FamilyName, user.LastName);
         identity.SetClaim(AuthConstants.TelegramIdClaim, user.TelegramId.ToString());
+        identity.SetClaims(UserRoles.ClaimType, roles.ToImmutableArray());
 
         identity.SetScopes(scopes);
         // Токен со scope'ом API адресован API (aud): Cooking.Api принимает только такие.
@@ -41,6 +44,13 @@ public static class UserPrincipalFactory
         identity.SetDestinations(GetDestinations);
         return new ClaimsPrincipal(identity);
     }
+
+    /// <summary>
+    /// Роли пользователя. Считаются при каждой выдаче и обновлении токенов: убрали Id из Admin:TelegramIds и перезапустили Auth
+    /// (переменные окружения контейнера меняются только с перезапуском) — роль пропадёт с ближайшим обновлением access token.
+    /// </summary>
+    public static IReadOnlyList<string> GetRoles(UserDto user, AdminOptions admin) =>
+        admin.TelegramIds.Contains(user.TelegramId) ? [UserRoles.Admin] : [];
 
     /// <summary>Id пользователя (claim sub) из сессии или из ранее выданного code/refresh-токена.</summary>
     public static Guid? GetUserId(ClaimsPrincipal? principal) =>

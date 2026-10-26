@@ -1,9 +1,11 @@
 using Cooking.Auth.Identity;
+using Cooking.Auth.Options;
 using Cooking.Auth.Services;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -15,7 +17,7 @@ namespace Cooking.Auth.Controllers;
 /// делает OpenIddict до того, как запрос дойдёт сюда; контроллер только отвечает, кто пользователь.
 /// </summary>
 /// В лог — кто и какому клиенту получил code/токены; сами code, code_verifier и токены — никогда.
-public class AuthorizationController(UserResolver users, ILogger<AuthorizationController> logger) : Controller
+public class AuthorizationController(UserResolver users, IOptions<AdminOptions> admin, ILogger<AuthorizationController> logger) : Controller
 {
     /// <summary>
     /// Начало входа: клиент (PWA, Swagger) перенаправляет сюда браузер. Нет сессии — отправляем на страницу входа,
@@ -42,9 +44,11 @@ public class AuthorizationController(UserResolver users, ILogger<AuthorizationCo
 
         if (user is not null)
         {
-            logger.LogInformation("Authorize: code issued to client {ClientId} for user {UserId}, scopes {Scopes}",
-                request.ClientId, user.Id, request.GetScopes());
-            return SignIn(UserPrincipalFactory.CreateForTokens(user, request.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            var roles = UserPrincipalFactory.GetRoles(user, admin.Value);
+            logger.LogInformation("Authorize: code issued to client {ClientId} for user {UserId}, scopes {Scopes}, roles {Roles}",
+                request.ClientId, user.Id, request.GetScopes(), roles);
+            return SignIn(UserPrincipalFactory.CreateForTokens(user, request.GetScopes(), roles),
+                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         logger.LogInformation("Authorize: client {ClientId}, no session → {Outcome}",
@@ -81,9 +85,11 @@ public class AuthorizationController(UserResolver users, ILogger<AuthorizationCo
             return Forbid(Errors.InvalidGrant, "The user no longer exists.");
         }
 
-        logger.LogInformation("Token: tokens issued to client {ClientId} for user {UserId} by {GrantType}",
-            request.ClientId, user.Id, request.GrantType);
-        return SignIn(UserPrincipalFactory.CreateForTokens(user, granted.Principal!.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        var tokenRoles = UserPrincipalFactory.GetRoles(user, admin.Value);
+        logger.LogInformation("Token: tokens issued to client {ClientId} for user {UserId} by {GrantType}, roles {Roles}",
+            request.ClientId, user.Id, request.GrantType, tokenRoles);
+        return SignIn(UserPrincipalFactory.CreateForTokens(user, granted.Principal!.GetScopes(), tokenRoles),
+            OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     /// <summary>

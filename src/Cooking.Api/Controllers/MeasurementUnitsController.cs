@@ -1,6 +1,8 @@
+using Cooking.Api.Authorization;
 using Cooking.Api.Contracts;
 using Cooking.Application.MeasurementUnits.Commands;
 using Cooking.Application.MeasurementUnits.Queries;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cooking.Api.Controllers;
@@ -16,6 +18,7 @@ public class MeasurementUnitsController : BaseController
         => HandleResult(await Mediator.Send(new GetMeasurementUnitByIdQuery(id), cancellationToken));
 
     [HttpPost]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Create(MeasurementUnitRequest request, CancellationToken cancellationToken)
     {
         var result = await Mediator.Send(new CreateMeasurementUnitCommand(request.Name, request.Abbreviation), cancellationToken);
@@ -26,10 +29,12 @@ public class MeasurementUnitsController : BaseController
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Update(Guid id, MeasurementUnitRequest request, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new UpdateMeasurementUnitCommand(id, request.Name, request.Abbreviation), cancellationToken));
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new DeleteMeasurementUnitCommand(id), cancellationToken));
 }

@@ -1,6 +1,8 @@
+using Cooking.Api.Authorization;
 using Cooking.Api.Contracts;
 using Cooking.Application.ReferenceData.Complexities.Commands;
 using Cooking.Application.ReferenceData.Complexities.Queries;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cooking.Api.Controllers;
@@ -16,6 +18,7 @@ public class ComplexitiesController : BaseController
         => HandleResult(await Mediator.Send(new GetComplexityByIdQuery(id), cancellationToken));
 
     [HttpPost]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Create(ReferenceEntityRequest request, CancellationToken cancellationToken)
     {
         var result = await Mediator.Send(new CreateComplexityCommand(request.Name), cancellationToken);
@@ -26,10 +29,12 @@ public class ComplexitiesController : BaseController
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Update(Guid id, ReferenceEntityRequest request, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new UpdateComplexityCommand(id, request.Name), cancellationToken));
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = Policies.ManageReferenceData)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
         => HandleResult(await Mediator.Send(new DeleteComplexityCommand(id), cancellationToken));
 }
