@@ -12,7 +12,12 @@ export function useWakeLock() {
     let sentinel: WakeLockSentinel | null = null;
     let active = true;
 
+    // Запрос уже идёт — второй не шлём: иначе быстрое «свернул-развернул» даёт две блокировки, а снимется одна.
+    let requesting = false;
+
     const request = async () => {
+      if (requesting || (sentinel && !sentinel.released)) return;
+      requesting = true;
       try {
         const lock = await navigator.wakeLock.request('screen');
         // Пока ждали ответа, компонент могли уже убрать с экрана.
@@ -20,6 +25,8 @@ export function useWakeLock() {
         else void lock.release();
       } catch {
         // Отказ — не ошибка для пользователя: экран просто погаснет по таймеру системы.
+      } finally {
+        requesting = false;
       }
     };
 

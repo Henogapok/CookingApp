@@ -62,6 +62,9 @@ describe('formatAmount', () => {
     [1.5, '1,5'],
     [0.333, '0,3'],
     [1500, '1 500'],
+    [0.06, '0,1'],
+    [0.04, '< 0,1'],
+    [0.02, '< 0,1'],
   ])('%d → «%s»', (amount, expected) => {
     expect(plainSpaces(formatAmount(amount))).toBe(expected);
   });
