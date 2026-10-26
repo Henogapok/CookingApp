@@ -39,7 +39,7 @@ public class FamilyRepositoryServiceTests
         var result = await repository.CreateAsync(userId, "Семья Ивана", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var family = await repository.GetByIdAsync(result.Value, CancellationToken.None);
+        var family = await repository.GetByIdAsync(result.Value, userId, CancellationToken.None);
         Assert.Equal("Семья Ивана", family.Value.Name);
         Assert.Equal(userId, Assert.Single(family.Value.Members).UserId);
     }
@@ -69,7 +69,21 @@ public class FamilyRepositoryServiceTests
     }
 
     [Fact]
-    public async Task CreateInviteAsync_ByNonMember_ReturnsForbidden()
+    public async Task GetByIdAsync_ByNonMember_ReturnsNotFound()
+    {
+        await using var context = CreateContext();
+        var ownerId = await SeedUserAsync(context, 1, "Иван");
+        var strangerId = await SeedUserAsync(context, 2, "Пётр");
+        var repository = new FamilyRepositoryService(context);
+        var familyId = (await repository.CreateAsync(ownerId, "Семья", CancellationToken.None)).Value;
+
+        var result = await repository.GetByIdAsync(familyId, strangerId, CancellationToken.None);
+
+        AssertError(result, ErrorCode.NotFound);
+    }
+
+    [Fact]
+    public async Task CreateInviteAsync_ByNonMember_ReturnsNotFound()
     {
         await using var context = CreateContext();
         var ownerId = await SeedUserAsync(context, 1, "Иван");
@@ -79,7 +93,7 @@ public class FamilyRepositoryServiceTests
 
         var result = await repository.CreateInviteAsync(familyId, strangerId, CancellationToken.None);
 
-        AssertError(result, ErrorCode.Forbidden);
+        AssertError(result, ErrorCode.NotFound);
     }
 
     [Fact]
@@ -183,7 +197,7 @@ public class FamilyRepositoryServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Null((await context.Users.FindAsync(ownerId))!.FamilyId);
-        var family = await repository.GetByIdAsync(familyId, CancellationToken.None);
+        var family = await repository.GetByIdAsync(familyId, friendId, CancellationToken.None);
         Assert.Equal(friendId, Assert.Single(family.Value.Members).UserId);
     }
 

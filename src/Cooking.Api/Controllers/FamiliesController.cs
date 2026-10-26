@@ -9,7 +9,7 @@ public class FamiliesController : BaseController
 {
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
-        => HandleResult(await Mediator.Send(new GetFamilyByIdQuery(id), cancellationToken));
+        => HandleResult(await Mediator.Send(new GetFamilyByIdQuery(id, CurrentUserId), cancellationToken));
 
     [HttpPost]
     public async Task<IActionResult> Create(CreateFamilyRequest request, CancellationToken cancellationToken)

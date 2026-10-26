@@ -7,5 +7,5 @@ public class GetFamilyByIdQueryHandler(IFamilyRepositoryService repository)
     : IRequestHandler<GetFamilyByIdQuery, Result<FamilyDto>>
 {
     public Task<Result<FamilyDto>> Handle(GetFamilyByIdQuery request, CancellationToken cancellationToken) =>
-        repository.GetByIdAsync(request.Id, cancellationToken);
+        repository.GetByIdAsync(request.Id, request.UserId, cancellationToken);
 }

@@ -36,10 +36,10 @@ public class FamilyRepositoryService(IDataContext dataContext) : IFamilyReposito
         return Result.Ok(family.Id);
     }
 
-    public async Task<Result<FamilyDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<Result<FamilyDto>> GetByIdAsync(Guid id, Guid userId, CancellationToken cancellationToken)
     {
         var dto = await dataContext.Families
-            .Where(f => f.Id == id)
+            .Where(f => f.Id == id && f.Users.Any(u => u.Id == userId))
             .Select(f => new FamilyDto(
                 f.Id,
                 f.Name,
@@ -64,8 +64,9 @@ public class FamilyRepositoryService(IDataContext dataContext) : IFamilyReposito
         if (user is null)
             return Result.Fail(new AppError($"User with id '{userId}' was not found.", ErrorCode.Validation));
 
+        // Чужая семья — NotFound, а не Forbidden: не раскрываем, что семья с таким Id существует.
         if (user.FamilyId != familyId)
-            return Result.Fail(new AppError("Only a member of the family can invite others.", ErrorCode.Forbidden));
+            return Result.Fail(new AppError($"Family with id '{familyId}' was not found.", ErrorCode.NotFound));
 
         var invite = new FamilyInvite
         {
