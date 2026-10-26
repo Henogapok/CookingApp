@@ -21,6 +21,29 @@ public class ConfirmRecipeDraftCommandHandler(
         if (content.IsFailed)
             return content.ToResult<Guid>();
 
+        // Двойное «Сохранить» не должно создать два рецепта: второе нажатие получит LogicConflict.
+        var started = await drafts.StartConfirmationAsync(request.DraftId, request.UserId, cancellationToken);
+        if (started.IsFailed)
+            return started.ToResult<Guid>();
+
+        var saved = false;
+        try
+        {
+            var recipeId = await SaveAsync(request, content.Value, cancellationToken);
+            saved = recipeId.IsSuccess;
+            return recipeId;
+        }
+        finally
+        {
+            // Не сохранилось (ошибка или исключение) — черновик остаётся, его можно сохранить ещё раз.
+            if (!saved)
+                await drafts.CancelConfirmationAsync(request.DraftId, CancellationToken.None);
+        }
+    }
+
+    private async Task<Result<Guid>> SaveAsync(
+        ConfirmRecipeDraftCommand request, RecipeDraftContent draft, CancellationToken cancellationToken)
+    {
         var existing = await catalog.GetAllAsync(cancellationToken);
         if (existing.IsFailed)
             return existing.ToResult<Guid>();
@@ -30,7 +53,7 @@ public class ConfirmRecipeDraftCommandHandler(
             catalogIdsByKey.TryAdd(RecipeDraftMapper.NameKey(item.Name), item.Id);
 
         // Сверяем по названию ещё раз: пока черновик ждал, такой ингредиент мог появиться в каталоге.
-        foreach (var ingredient in content.Value.Ingredients)
+        foreach (var ingredient in draft.Ingredients)
         {
             var key = RecipeDraftMapper.NameKey(ingredient.Name);
 
@@ -66,13 +89,13 @@ public class ConfirmRecipeDraftCommandHandler(
             catalogIdsByKey[key] = created.Value;
         }
 
-        var fields = RecipeDraftMapper.ToRecipeFields(content.Value, catalogIdsByKey);
+        var fields = RecipeDraftMapper.ToRecipeFields(draft, catalogIdsByKey);
 
         var validation = FieldsValidator.Validate(fields);
         if (!validation.IsValid)
             return Result.Fail(new AppError(string.Join(" ", validation.Errors.Select(e => e.ErrorMessage)), ErrorCode.Validation));
 
-        var recipeId = content.Value.RecipeId is { } editedId
+        var recipeId = draft.RecipeId is { } editedId
             ? (await recipes.UpdateAsync(editedId, request.UserId, fields, cancellationToken)).ToResult(editedId)
             : await recipes.CreateAsync(request.UserId, fields, cancellationToken);
 
