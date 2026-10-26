@@ -118,18 +118,16 @@ public class FamilyRepositoryService(IDataContext dataContext) : IFamilyReposito
 
     public async Task<Result> LeaveAsync(Guid familyId, Guid userId, CancellationToken cancellationToken)
     {
-        var family = await dataContext.Families.FindAsync([familyId], cancellationToken);
-
-        if (family is null)
-            return Result.Fail(new AppError($"Family with id '{familyId}' was not found.", ErrorCode.NotFound));
-
         var user = await dataContext.Users.FindAsync([userId], cancellationToken);
 
         if (user is null)
             return Result.Fail(new AppError($"User with id '{userId}' was not found.", ErrorCode.Validation));
 
-        if (user.FamilyId != familyId)
-            return Result.Fail(new AppError("User is not a member of this family.", ErrorCode.LogicConflict));
+        var family = await dataContext.Families.FindAsync([familyId], cancellationToken);
+
+        // Чужая семья — тот же NotFound, что и несуществующая: не раскрываем, что она есть.
+        if (family is null || user.FamilyId != familyId)
+            return Result.Fail(new AppError($"Family with id '{familyId}' was not found.", ErrorCode.NotFound));
 
         user.FamilyId = null;
 

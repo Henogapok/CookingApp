@@ -202,6 +202,21 @@ public class FamilyRepositoryServiceTests
     }
 
     [Fact]
+    public async Task LeaveAsync_ByNonMember_ReturnsNotFound()
+    {
+        await using var context = CreateContext();
+        var ownerId = await SeedUserAsync(context, 1, "Иван");
+        var strangerId = await SeedUserAsync(context, 2, "Маша");
+        var repository = new FamilyRepositoryService(context);
+        var familyId = (await repository.CreateAsync(ownerId, "Семья", CancellationToken.None)).Value;
+
+        var result = await repository.LeaveAsync(familyId, strangerId, CancellationToken.None);
+
+        AssertError(result, ErrorCode.NotFound);
+        Assert.True(await context.Families.AnyAsync());
+    }
+
+    [Fact]
     public async Task LeaveAsync_ByLastMember_DeletesFamily()
     {
         await using var context = CreateContext();
@@ -213,19 +228,5 @@ public class FamilyRepositoryServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.False(await context.Families.AnyAsync());
-    }
-
-    [Fact]
-    public async Task LeaveAsync_ByNonMember_ReturnsLogicConflict()
-    {
-        await using var context = CreateContext();
-        var ownerId = await SeedUserAsync(context, 1, "Иван");
-        var strangerId = await SeedUserAsync(context, 2, "Пётр");
-        var repository = new FamilyRepositoryService(context);
-        var familyId = (await repository.CreateAsync(ownerId, "Семья", CancellationToken.None)).Value;
-
-        var result = await repository.LeaveAsync(familyId, strangerId, CancellationToken.None);
-
-        AssertError(result, ErrorCode.LogicConflict);
     }
 }
