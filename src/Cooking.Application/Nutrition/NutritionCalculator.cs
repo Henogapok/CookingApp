@@ -2,39 +2,6 @@ using Cooking.Domain.ReferenceData;
 
 namespace Cooking.Application.Nutrition;
 
-/// <summary>КБЖУ: ккал, белки, жиры, углеводы (г).</summary>
-public record NutritionFacts(decimal Calories, decimal Protein, decimal Fat, decimal Carbs)
-{
-    public static readonly NutritionFacts Zero = new(0, 0, 0, 0);
-
-    public static NutritionFacts operator +(NutritionFacts a, NutritionFacts b) =>
-        new(a.Calories + b.Calories, a.Protein + b.Protein, a.Fat + b.Fat, a.Carbs + b.Carbs);
-
-    public NutritionFacts Scale(decimal factor) =>
-        new(Calories * factor, Protein * factor, Fat * factor, Carbs * factor);
-}
-
-/// <summary>Данные ингредиента из каталога, нужные для расчёта. Per100 и PricePer100 — на 100 базовых единиц.</summary>
-public record IngredientNutritionSource(Guid BaseUnitId, decimal? PieceWeight, NutritionFacts Per100, decimal PricePer100);
-
-/// <summary>Строка рецепта: сколько и в чём. Amount/UnitId = null — «по вкусу».</summary>
-public record IngredientAmount(string Name, decimal? Amount, Guid? UnitId, IngredientNutritionSource Source);
-
-/// <param name="BaseAmount">Количество в базовой единице ингредиента (г или мл); null — «по вкусу» или не пересчитать.</param>
-public record IngredientNutrition(decimal? BaseAmount, NutritionFacts? Nutrition);
-
-/// <param name="PerServing">null, если число порций неизвестно.</param>
-/// <param name="Cost">Стоимость ингредиентов с известной ценой, ₸.</param>
-/// <param name="IngredientsWithoutPrice">Сколько учтённых ингредиентов без цены (0 в каталоге).</param>
-/// <param name="NotCounted">Ингредиенты с количеством, которое не удалось перевести в г/мл (например, «шт» без веса штуки).</param>
-public record RecipeNutrition(
-    NutritionFacts Total,
-    NutritionFacts? PerServing,
-    int CountedIngredients,
-    decimal Cost,
-    int IngredientsWithoutPrice,
-    List<string> NotCounted);
-
 /// <summary>
 /// КБЖУ и стоимость по сырым продуктам: amount × значение на 100 базовых единиц / 100.
 /// Ничего не хранится — считается при каждом показе, поэтому смена формулы сразу отражается во всех рецептах.
@@ -53,6 +20,8 @@ public static class NutritionCalculator
         [ReferenceIds.MeasurementUnits.Teaspoon] = 5,
         [ReferenceIds.MeasurementUnits.Glass] = 250,
         [ReferenceIds.MeasurementUnits.Pinch] = 0.5m,
+        [ReferenceIds.MeasurementUnits.Kilogram] = 1000,
+        [ReferenceIds.MeasurementUnits.Liter] = 1000,
     };
 
     /// <summary>Количество в базовой единице ингредиента или null, если пересчитать нельзя.</summary>
@@ -71,6 +40,30 @@ public static class NutritionCalculator
         return UnitSizes.TryGetValue(unit, out var size) ? value * size : null;
     }
 
+    /// <summary>
+    /// Цена за 100 базовых единиц из упаковки: «520 ₸ · 1 л» → 52 ₸ за 100 мл. Упаковка пересчитывается так же,
+    /// как количество в рецепте (кг, л, шт через вес штуки); не пересчитать или цены нет — null.
+    /// </summary>
+    public static decimal? PricePer100(ProductValues product, IngredientNutritionSource ingredient)
+    {
+        if (product.PackagePrice is not { } price)
+            return null;
+
+        return ToBaseAmount(product.PackageAmount, product.PackageUnitId, ingredient) is { } amount and > 0
+            ? price / amount * 100
+            : null;
+    }
+
+    /// <summary>КБЖУ ингредиента — оценка ИИ: в каталоге его оценил LLM, а у выбранного продукта своего КБЖУ нет.</summary>
+    public static bool IsEstimatedByLlm(bool catalogEstimatedByLlm, ProductValues? product) =>
+        catalogEstimatedByLlm && product?.Per100 is null;
+
+    /// <summary>Источник для расчёта с выбранным продуктом: его КБЖУ (если указано) и цена; без продукта — каталог без цены.</summary>
+    public static IngredientNutritionSource WithProduct(IngredientNutritionSource catalog, ProductValues? product) =>
+        product is null
+            ? catalog
+            : catalog with { Per100 = product.Per100 ?? catalog.Per100, PricePer100 = PricePer100(product, catalog) };
+
     public static IngredientNutrition ForIngredient(IngredientAmount ingredient)
     {
         var baseAmount = ToBaseAmount(ingredient.Amount, ingredient.UnitId, ingredient.Source);
@@ -83,7 +76,7 @@ public static class NutritionCalculator
         var total = NutritionFacts.Zero;
         var counted = 0;
         var cost = 0m;
-        var withoutPrice = 0;
+        var withoutPrice = new List<string>();
         var notCounted = new List<string>();
 
         foreach (var ingredient in ingredients)
@@ -100,10 +93,10 @@ public static class NutritionCalculator
             counted++;
             total += ingredient.Source.Per100.Scale(baseAmount / 100);
 
-            if (ingredient.Source.PricePer100 > 0)
-                cost += ingredient.Source.PricePer100 * baseAmount / 100;
+            if (ingredient.Source.PricePer100 is { } price)
+                cost += price * baseAmount / 100;
             else
-                withoutPrice++;
+                withoutPrice.Add(ingredient.Name);
         }
 
         return new RecipeNutrition(
@@ -111,7 +104,8 @@ public static class NutritionCalculator
             servings is > 0 ? total.Scale(1m / servings.Value) : null,
             counted,
             cost,
-            withoutPrice,
+            // Один ингредиент бывает в рецепте несколькими строками (сахар в тесто и в крем) — называем его один раз.
+            withoutPrice.Distinct().ToList(),
             notCounted);
     }
 }

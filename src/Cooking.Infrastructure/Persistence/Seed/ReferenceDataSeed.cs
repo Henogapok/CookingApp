@@ -36,6 +36,8 @@ internal static class ReferenceDataSeed
         new() { Id = ReferenceIds.MeasurementUnits.Teaspoon, Name = "Чайная ложка", Abbreviation = "ч.л." },
         new() { Id = ReferenceIds.MeasurementUnits.Glass, Name = "Стакан", Abbreviation = "стак." },
         new() { Id = ReferenceIds.MeasurementUnits.Pinch, Name = "Щепотка", Abbreviation = "щеп." },
+        new() { Id = ReferenceIds.MeasurementUnits.Kilogram, Name = "Килограмм", Abbreviation = "кг" },
+        new() { Id = ReferenceIds.MeasurementUnits.Liter, Name = "Литр", Abbreviation = "л" },
     ];
 
     public static readonly DataSource[] DataSources =

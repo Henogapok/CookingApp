@@ -29,7 +29,7 @@ public class IngredientCatalogRepositoryServiceTests
     }
 
     private static IngredientCatalogFields ValidFields(Guid categoryId, Guid unitId, Guid sourceId) => new(
-        "Куриная грудка", categoryId, unitId, 25.0m, 165.0m, 31.0m, 3.6m, 0.0m, sourceId, sourceId);
+        "Куриная грудка", categoryId, unitId, 165.0m, 31.0m, 3.6m, 0.0m, sourceId, sourceId);
 
     [Fact]
     public async Task CreateAsync_WithValidForeignKeys_AddsEntity()

@@ -170,15 +170,26 @@ public class RecipeDraftMapperTests
     }
 
     [Fact]
+    public void ToCorrectionJson_KilogramsAndLiters_KeepTheirCodes()
+    {
+        var content = Map(Parsed([Ingredient("Картофель", 1, "kg"), Ingredient("Молоко", 0.5m, "l")]));
+
+        var json = RecipeDraftMapper.ToCorrectionJson(content, new Dictionary<Guid, string>());
+
+        Assert.Contains("\"name\":\"Картофель\",\"amount\":1,\"unit\":\"kg\"", json);
+        Assert.Contains("\"name\":\"Молоко\",\"amount\":0.5,\"unit\":\"l\"", json);
+    }
+
+    [Fact]
     public void FromRecipe_KeepsIngredientsStepsTagsAndLinkToRecipe()
     {
         var recipe = new RecipeDto(
             Guid.NewGuid(), "Омлет", null, "https://example.com", ReferenceIds.SourceTypes.Website, "Website",
             ReferenceIds.Complexities.Easy, "Easy", 2, 10, Guid.NewGuid(), "Аня", DateTime.UtcNow, DateTime.UtcNow,
-            [new RecipeIngredientDto(ChickenId, "Яйцо", 3, ReferenceIds.MeasurementUnits.Piece, "Штука", "шт", false, 165, "г", null)],
+            [new RecipeIngredientDto(ChickenId, "Яйцо", 3, ReferenceIds.MeasurementUnits.Piece, "Штука", "шт", false, 165, "г", null, null, null)],
             [new RecipeStepDto(1, "Взбить", null)],
             [new Cooking.Application.Tags.TagDto(DinnerTagId, "Ужин", Guid.NewGuid(), "MealType")],
-            new Cooking.Application.Nutrition.RecipeNutrition(Cooking.Application.Nutrition.NutritionFacts.Zero, null, 0, 0, 0, []));
+            new Cooking.Application.Nutrition.RecipeNutrition(Cooking.Application.Nutrition.NutritionFacts.Zero, null, 0, 0, [], []));
 
         var content = RecipeDraftMapper.FromRecipe(recipe);
 

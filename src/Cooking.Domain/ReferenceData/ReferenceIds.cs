@@ -31,6 +31,8 @@ public static class ReferenceIds
         public static readonly Guid Teaspoon = new("00000003-0000-0000-0000-000000000005");
         public static readonly Guid Glass = new("00000003-0000-0000-0000-000000000006");
         public static readonly Guid Pinch = new("00000003-0000-0000-0000-000000000007");
+        public static readonly Guid Kilogram = new("00000003-0000-0000-0000-000000000008");
+        public static readonly Guid Liter = new("00000003-0000-0000-0000-000000000009");
     }
 
     public static class DataSources

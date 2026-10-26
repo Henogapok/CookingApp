@@ -13,7 +13,6 @@ public class UpdateIngredientCatalogCommandHandler(IIngredientCatalogRepositoryS
                 request.Name,
                 request.CategoryId,
                 request.BaseUnitId,
-                request.PricePer100G,
                 request.CaloriesPer100G,
                 request.ProteinPer100G,
                 request.FatPer100G,

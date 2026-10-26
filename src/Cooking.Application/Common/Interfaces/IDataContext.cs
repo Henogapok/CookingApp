@@ -25,6 +25,7 @@ public interface IDataContext
     DbSet<Complexity> Complexities { get; }
 
     DbSet<IngredientCatalog> IngredientCatalog { get; }
+    DbSet<Product> Products { get; }
     DbSet<IngredientCategory> IngredientCategories { get; }
     DbSet<MeasurementUnit> MeasurementUnits { get; }
     DbSet<DataSource> DataSources { get; }

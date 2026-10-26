@@ -25,6 +25,7 @@ public class CookingDbContext(DbContextOptions<CookingDbContext> options)
     public DbSet<Complexity> Complexities => Set<Complexity>();
 
     public DbSet<IngredientCatalog> IngredientCatalog => Set<IngredientCatalog>();
+    public DbSet<Product> Products => Set<Product>();
     public DbSet<IngredientCategory> IngredientCategories => Set<IngredientCategory>();
     public DbSet<MeasurementUnit> MeasurementUnits => Set<MeasurementUnit>();
     public DbSet<DataSource> DataSources => Set<DataSource>();

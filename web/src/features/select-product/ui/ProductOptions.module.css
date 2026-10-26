@@ -1,0 +1,92 @@
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.selected {
+  border-color: var(--accent);
+}
+
+.pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 6px 8px 14px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.radio {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+}
+
+.selected .radio {
+  border-color: var(--accent);
+  background: radial-gradient(var(--accent) 0 4px, transparent 5px);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.details {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.edit {
+  flex: none;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--accent);
+}

@@ -39,10 +39,11 @@ export function NutritionSummary({ nutrition, factor, servings }: NutritionSumma
         <p className={styles.note}>
           Стоимость: <strong className={styles.strong}>{formatCost(cost)}</strong>
           {servings !== null && servings > 0 && ` · ${formatCost(cost / servings)} за порцию`}
-          {nutrition.ingredientsWithoutPrice > 0 && ` · без учёта ${nutrition.ingredientsWithoutPrice} ингр. без цены`}
+          {nutrition.ingredientsWithoutPrice.length > 0 &&
+            ` · без цены: ${nutrition.ingredientsWithoutPrice.join(', ')}`}
         </p>
       ) : (
-        <p className={styles.note}>Стоимость не посчитать: у ингредиентов не указаны цены</p>
+        <p className={styles.note}>Стоимость не посчитать: у ингредиентов нет продуктов с ценой</p>
       )}
 
       {nutrition.notCounted.length > 0 && (

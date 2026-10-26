@@ -200,12 +200,12 @@ public static class BotRecipeFormatter
         if (nutrition.NotCounted.Count > 0)
             text.AppendLine($"⚠️ Не учтено в КБЖУ: {string.Join(", ", nutrition.NotCounted.Select(Html))}");
 
-        // Цены в каталоге пока заполнены не у всех — показываем стоимость, только если есть хоть одна цена.
+        // Цена — из продуктов пользователя (PWA, «Мои продукты»); пока ни одного с ценой — стоимость не показываем.
         if (nutrition.Cost > 0)
         {
             text.Append($"💰 ~{Round(nutrition.Cost)} ₸");
-            if (nutrition.IngredientsWithoutPrice > 0)
-                text.Append($" (без цены: {nutrition.IngredientsWithoutPrice})");
+            if (nutrition.IngredientsWithoutPrice.Count > 0)
+                text.Append($" (без цены: {string.Join(", ", nutrition.IngredientsWithoutPrice.Select(Html))})");
             text.AppendLine();
         }
 

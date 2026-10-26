@@ -30,13 +30,13 @@ public class BotRecipeFormatterTests
             ingredients ?? [], steps ?? [], tags ?? [],
             nutrition ?? EmptyNutrition);
 
-    private static readonly RecipeNutrition EmptyNutrition = new RecipeNutrition(NutritionFacts.Zero, null, 0, 0, 0, []);
+    private static readonly RecipeNutrition EmptyNutrition = new RecipeNutrition(NutritionFacts.Zero, null, 0, 0, [], []);
 
     private static RecipeIngredientDto Ingredient(
         string name, decimal? amount, string unit = "г", bool estimatedByLlm = false, NutritionFacts? nutrition = null) =>
         amount is null
-            ? new(Guid.NewGuid(), name, null, null, null, null, estimatedByLlm, null, "г", null)
-            : new(Guid.NewGuid(), name, amount, Guid.NewGuid(), unit, unit, estimatedByLlm, amount, "г", nutrition);
+            ? new(Guid.NewGuid(), name, null, null, null, null, estimatedByLlm, null, "г", null, null, null)
+            : new(Guid.NewGuid(), name, amount, Guid.NewGuid(), unit, unit, estimatedByLlm, amount, "г", nutrition, null, null);
 
     [Fact]
     public void FormatCard_EscapesHtmlInUserText()
@@ -257,10 +257,10 @@ public class BotRecipeFormatterTests
     {
         var beet = new RecipeIngredientDto(
             Guid.NewGuid(), "Свёкла", 1, ReferenceIds.MeasurementUnits.Piece, "Штука", "шт", true,
-            250, "г", new NutritionFacts(107.5m, 3.75m, 0.25m, 23.9m));
+            250, "г", new NutritionFacts(107.5m, 3.75m, 0.25m, 23.9m), null, null);
         var nutrition = new RecipeNutrition(
             new NutritionFacts(900, 60, 40, 80), new NutritionFacts(225, 15, 10, 20),
-            CountedIngredients: 2, Cost: 1500, IngredientsWithoutPrice: 1, NotCounted: ["Зелень"]);
+            CountedIngredients: 2, Cost: 1500, IngredientsWithoutPrice: ["Морковь"], NotCounted: ["Зелень"]);
 
         var card = BotRecipeFormatter.FormatCard(CreateRecipe(ingredients: [beet], nutrition: nutrition), AuthorId);
 
@@ -269,13 +269,13 @@ public class BotRecipeFormatterTests
         Assert.Contains("🔥 Всё блюдо: 900 ккал · Б 60 · Ж 40 · У 80", card);
         Assert.Contains("🍽 На порцию (из 4): 225 ккал · Б 15 · Ж 10 · У 20", card);
         Assert.Contains("⚠️ Не учтено в КБЖУ: Зелень", card);
-        Assert.Contains("💰 ~1\u00a0500 ₸ (без цены: 1)", card);
+        Assert.Contains("💰 ~1\u00a0500 ₸ (без цены: Морковь)", card);
     }
 
     [Fact]
     public void FormatCard_NoPrices_HidesCost()
     {
-        var nutrition = new RecipeNutrition(new NutritionFacts(100, 1, 1, 1), null, 1, 0, 1, []);
+        var nutrition = new RecipeNutrition(new NutritionFacts(100, 1, 1, 1), null, 1, 0, ["Рис"], []);
 
         var card = BotRecipeFormatter.FormatCard(CreateRecipe(ingredients: [Ingredient("Рис", 100)], nutrition: nutrition), AuthorId);
 
@@ -287,7 +287,7 @@ public class BotRecipeFormatterTests
     [Fact]
     public void FormatCard_IngredientsAndSteps_AreCollapsible_TotalsVisible()
     {
-        var nutrition = new RecipeNutrition(new NutritionFacts(900, 60, 40, 80), null, 1, 0, 1, []);
+        var nutrition = new RecipeNutrition(new NutritionFacts(900, 60, 40, 80), null, 1, 0, ["Рис"], []);
         var recipe = CreateRecipe(
             ingredients: [Ingredient("Соль", 5, nutrition: NutritionFacts.Zero), Ingredient("Рис", 100, nutrition: new NutritionFacts(330, 7, 1, 72))],
             steps: [new RecipeStepDto(1, "Варить", 600)],

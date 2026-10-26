@@ -34,7 +34,9 @@ public record RecipeIngredientDto(
     bool IsNutritionEstimatedByLlm,
     decimal? BaseAmount,
     string BaseUnitAbbreviation,
-    NutritionFacts? Nutrition);
+    NutritionFacts? Nutrition,
+    Guid? ProductId,
+    string? ProductName);
 
 public record RecipeStepDto(int StepNumber, string Instruction, int? TimerSeconds);
 

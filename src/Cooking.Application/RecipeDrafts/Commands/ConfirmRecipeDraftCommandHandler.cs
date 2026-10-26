@@ -73,7 +73,6 @@ public class ConfirmRecipeDraftCommandHandler(
                     ingredient.Name,
                     data.CategoryId,
                     data.BaseUnitId,
-                    PricePer100G: 0, // цену LLM оценивает плохо — вносится вручную
                     data.CaloriesPer100G,
                     data.ProteinPer100G,
                     data.FatPer100G,
