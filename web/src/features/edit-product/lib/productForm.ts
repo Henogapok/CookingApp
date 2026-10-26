@@ -59,7 +59,11 @@ export function toProductInput(ingredientCatalogId: string, values: ProductFormV
     if (macros.some((value) => value === null)) errors.nutrition = 'Заполните все четыре значения — или выберите «Из каталога»';
     else if (macros.some((value) => Number.isNaN(value))) errors.nutrition = 'КБЖУ — числа от 0, например 3,2';
     else if (calories! > 1500 || [protein, fat, carbs].some((value) => value! > 200)) errors.nutrition = 'Слишком большое значение';
-    else if (rules.perGram && protein! + fat! + carbs! > 100) errors.nutrition = 'Белков, жиров и углеводов вместе не больше 100 г на 100 г';
+    else if ([values.calories, values.protein, values.fat, values.carbs].some((text) => decimals(text) > 2))
+      errors.nutrition = 'Не больше 2 знаков после запятой';
+    // Подпись группы — по единице упаковки («на 100 мл»), а правило — по единице ингредиента; г и мл у нас 1:1,
+    // поэтому в тексте без единиц, чтобы он не спорил с подписью.
+    else if (rules.perGram && protein! + fat! + carbs! > 100) errors.nutrition = 'Белков, жиров и углеводов вместе — не больше 100';
   }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };

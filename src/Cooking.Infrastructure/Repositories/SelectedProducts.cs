@@ -27,20 +27,7 @@ internal static class SelectedProducts
             query = query.Where(p => ingredientIds.Contains(p.IngredientCatalogId));
 
         var rows = await query
-            .Select(p => new
-            {
-                p.Id,
-                p.IngredientCatalogId,
-                p.Name,
-                p.SelectedAt,
-                p.PackagePrice,
-                p.PackageAmount,
-                p.PackageUnitId,
-                p.CaloriesPer100g,
-                p.ProteinPer100g,
-                p.FatPer100g,
-                p.CarbsPer100g,
-            })
+            .Select(ProductRow.Projection)
             .ToListAsync(cancellationToken);
 
         return rows
@@ -50,8 +37,7 @@ internal static class SelectedProducts
                 g =>
                 {
                     var p = g.InSelectionOrder(x => x.SelectedAt, x => x.Id).First();
-                    var per100 = NutritionFacts.AllOrNone(p.CaloriesPer100g, p.ProteinPer100g, p.FatPer100g, p.CarbsPer100g);
-                    return new SelectedProduct(p.Id, p.Name, new ProductValues(p.PackagePrice, p.PackageAmount, p.PackageUnitId, per100));
+                    return new SelectedProduct(p.Id, p.Name, p.Values);
                 });
     }
 }

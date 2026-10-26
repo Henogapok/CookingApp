@@ -63,12 +63,9 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         var source = new IngredientNutritionSource(fields.BaseUnitId, fields.PieceWeight, NutritionFacts.Zero, PricePer100: null);
         var products = await dataContext.Products
             .Where(p => p.IngredientCatalogId == id)
-            .Select(p => new { p.PackagePrice, p.PackageAmount, p.PackageUnitId, p.CaloriesPer100g, p.ProteinPer100g, p.FatPer100g, p.CarbsPer100g })
+            .Select(ProductRow.Projection)
             .ToListAsync(cancellationToken);
-        var broken = products.Any(p => ProductRules.Problem(
-            new ProductValues(p.PackagePrice, p.PackageAmount, p.PackageUnitId,
-                NutritionFacts.AllOrNone(p.CaloriesPer100g, p.ProteinPer100g, p.FatPer100g, p.CarbsPer100g)),
-            source) is not null);
+        var broken = products.Any(p => ProductRules.Problem(p.Values, source) is not null);
         if (broken)
             return Result.Fail(new AppError(
                 "Products of this ingredient would no longer fit its base unit or piece weight.", ErrorCode.LogicConflict));

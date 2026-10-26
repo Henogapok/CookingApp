@@ -31,21 +31,7 @@ public class ProductRepositoryService(IDataContext dataContext) : IProductReposi
 
         var products = await dataContext.Products
             .Where(HouseholdAccess.Products(user))
-            .Select(p => new
-            {
-                p.Id,
-                p.IngredientCatalogId,
-                p.Name,
-                p.PackagePrice,
-                p.PackageAmount,
-                p.PackageUnitId,
-                PackageUnitAbbreviation = p.PackageUnit != null ? p.PackageUnit.Abbreviation : null,
-                p.CaloriesPer100g,
-                p.ProteinPer100g,
-                p.FatPer100g,
-                p.CarbsPer100g,
-                p.SelectedAt,
-            })
+            .Select(ProductRow.Projection)
             .ToListAsync(cancellationToken);
 
         var ingredientIds = recipeCounts.Keys.Concat(products.Select(p => p.IngredientCatalogId)).Distinct().ToList();
@@ -79,14 +65,9 @@ public class ProductRepositoryService(IDataContext dataContext) : IProductReposi
                     i.Id, i.Name, i.BaseUnitId, i.BaseUnitAbbreviation, i.PieceWeight, i.Per100, i.IsNutritionEstimatedByLlm,
                     recipeCounts.GetValueOrDefault(i.Id),
                     productsByIngredient[i.Id]
-                        .Select(p =>
-                        {
-                            var per100 = NutritionFacts.AllOrNone(p.CaloriesPer100g, p.ProteinPer100g, p.FatPer100g, p.CarbsPer100g);
-                            var values = new ProductValues(p.PackagePrice, p.PackageAmount, p.PackageUnitId, per100);
-                            return new ProductDto(
-                                p.Id, p.Name, p.PackagePrice, p.PackageAmount, p.PackageUnitId, p.PackageUnitAbbreviation,
-                                NutritionCalculator.PricePer100(values, source), per100, p.Id == selectedId);
-                        })
+                        .Select(p => new ProductDto(
+                            p.Id, p.Name, p.PackagePrice, p.PackageAmount, p.PackageUnitId, p.PackageUnitAbbreviation,
+                            NutritionCalculator.PricePer100(p.Values, source), p.Per100, p.Id == selectedId))
                         .ToList());
             })
             .ToList();

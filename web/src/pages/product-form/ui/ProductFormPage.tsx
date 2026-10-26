@@ -22,7 +22,8 @@ export function ProductFormPage({ userName, onSignOut }: ProductFormPageProps) {
   const isDesktop = useMediaQuery('(min-width: 900px)');
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const { data: ingredients, error } = useQuery(productsQuery());
+  // staleTime 0: ингредиент мог появиться только что (рецепт сохранили в боте) — кэш списка о нём ещё не знает.
+  const { data: ingredients, error, isFetching } = useQuery({ ...productsQuery(), staleTime: 0 });
 
   const ingredient = id
     ? ingredients?.find((item) => item.products.some((product) => product.id === id))
@@ -35,7 +36,7 @@ export function ProductFormPage({ userName, onSignOut }: ProductFormPageProps) {
   let body;
   if (ingredient) {
     body = <ProductForm ingredient={ingredient} product={product} onDone={goBack} />;
-  } else if (!ingredients && !error) {
+  } else if ((!ingredients && !error) || isFetching) {
     body = <Skeleton height={420} radius={18} />;
   } else {
     body = <p className={styles.message}>{error ? getErrorMessage(error) : 'Продукт не найден — возможно, его уже удалили.'}</p>;

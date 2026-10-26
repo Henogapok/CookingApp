@@ -324,8 +324,9 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
                         i.UnitId is { } unitId ? unitAbbreviations.GetValueOrDefault(unitId) : null,
                         IsNew: i.NewIngredient is not null,
                         IsNutritionEstimatedByLlm: i.NewIngredient is not null
-                            || (i.IngredientCatalogId is { } id && catalog.TryGetValue(id, out var x) && x.NutritionSourceId == ReferenceIds.DataSources.Llm
-                                && products.GetValueOrDefault(id)?.Values.Per100 is null),
+                            || (i.IngredientCatalogId is { } id && catalog.TryGetValue(id, out var x)
+                                && NutritionCalculator.IsEstimatedByLlm(
+                                    x.NutritionSourceId == ReferenceIds.DataSources.Llm, products.GetValueOrDefault(id)?.Values)),
                         nutrition?.BaseAmount,
                         amounts[index] is { } a ? unitAbbreviations.GetValueOrDefault(a.Source.BaseUnitId) : null,
                         nutrition?.Nutrition);

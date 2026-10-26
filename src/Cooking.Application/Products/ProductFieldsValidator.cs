@@ -41,9 +41,10 @@ public class ProductFieldsValidator : AbstractValidator<ProductFields>
             .WithMessage("Calories, protein, fat and carbs must be set together.");
         // Границы с запасом на 100 мл (мёд — ~110 г углеводов на 100 мл); «Б+Ж+У ≤ 100» для граммов проверяет репозиторий —
         // единицу ингредиента знает только он.
-        RuleFor(x => x.CaloriesPer100G).InclusiveBetween(0, 1500).When(x => x.CaloriesPer100G is not null);
-        RuleFor(x => x.ProteinPer100G).InclusiveBetween(0, 200).When(x => x.ProteinPer100G is not null);
-        RuleFor(x => x.FatPer100G).InclusiveBetween(0, 200).When(x => x.FatPer100G is not null);
-        RuleFor(x => x.CarbsPer100G).InclusiveBetween(0, 200).When(x => x.CarbsPer100G is not null);
+        // Два знака после запятой — как хранит база (numeric(10,2)): 3,255 не должно молча стать 3,26.
+        RuleFor(x => x.CaloriesPer100G).InclusiveBetween(0, 1500).PrecisionScale(10, 2, true).When(x => x.CaloriesPer100G is not null);
+        RuleFor(x => x.ProteinPer100G).InclusiveBetween(0, 200).PrecisionScale(10, 2, true).When(x => x.ProteinPer100G is not null);
+        RuleFor(x => x.FatPer100G).InclusiveBetween(0, 200).PrecisionScale(10, 2, true).When(x => x.FatPer100G is not null);
+        RuleFor(x => x.CarbsPer100G).InclusiveBetween(0, 200).PrecisionScale(10, 2, true).When(x => x.CarbsPer100G is not null);
     }
 }

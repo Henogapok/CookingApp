@@ -64,6 +64,11 @@ describe('toProductInput', () => {
     expect(!result.ok && result.errors.price).toBe('Не больше 2 знаков после запятой');
   });
 
+  it('КБЖУ с тремя знаками после запятой → ошибка', () => {
+    const result = toProductInput('milk', values({ ownNutrition: true, calories: '58', protein: '3,255', fat: '1', carbs: '1' }), perMl);
+    expect(!result.ok && result.errors.nutrition).toBe('Не больше 2 знаков после запятой');
+  });
+
   it('отрицательное КБЖУ → понятная ошибка, а не «заполните»', () => {
     const result = toProductInput('milk', values({ ownNutrition: true, calories: '-5', protein: '1', fat: '1', carbs: '1' }), perMl);
     expect(!result.ok && result.errors.nutrition).toBe('КБЖУ — числа от 0, например 3,2');

@@ -12,7 +12,7 @@ import styles from './DesktopProducts.module.css';
 export function DesktopProducts({ subtitle, ingredients, allIngredients, errorBlock, ...filters }: ProductsListProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   // Открытая панель остаётся, даже если поиск или фильтр скрыли её строку: иначе пропала бы недозаполненная форма.
-  const active = allIngredients?.find((item) => item.ingredientCatalogId === activeId) ?? ingredients?.[0];
+  const active = allIngredients?.find((item) => item.ingredientCatalogId === activeId) ?? allIngredients?.[0];
 
   return (
     <div className={styles.page}>

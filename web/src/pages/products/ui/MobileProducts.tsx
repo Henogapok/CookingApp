@@ -36,7 +36,7 @@ interface IngredientCardProps {
 
 function IngredientCard({ ingredient }: IngredientCardProps) {
   const select = useSelectProduct();
-  const selectedId = select.isPending ? select.variables : ingredient.products.find((product) => product.isSelected)?.id;
+  const selectedId = select.selectedIdOf(ingredient);
   const selected = ingredient.products.find((product) => product.id === selectedId);
 
   return (

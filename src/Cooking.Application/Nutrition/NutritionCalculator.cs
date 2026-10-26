@@ -54,6 +54,10 @@ public static class NutritionCalculator
             : null;
     }
 
+    /// <summary>КБЖУ ингредиента — оценка ИИ: в каталоге его оценил LLM, а у выбранного продукта своего КБЖУ нет.</summary>
+    public static bool IsEstimatedByLlm(bool catalogEstimatedByLlm, ProductValues? product) =>
+        catalogEstimatedByLlm && product?.Per100 is null;
+
     /// <summary>Источник для расчёта с выбранным продуктом: его КБЖУ (если указано) и цена; без продукта — каталог без цены.</summary>
     public static IngredientNutritionSource WithProduct(IngredientNutritionSource catalog, ProductValues? product) =>
         product is null

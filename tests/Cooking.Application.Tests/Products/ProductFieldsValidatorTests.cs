@@ -68,4 +68,10 @@ public class ProductFieldsValidatorTests
     {
         Assert.False(Validator.Validate(Valid with { PackageAmount = 0.1234m }).IsValid);
     }
+
+    [Fact]
+    public void NutritionFinerThanStored_FailsValidation()
+    {
+        Assert.False(Validator.Validate(Valid with { ProteinPer100G = 3.255m }).IsValid);
+    }
 }

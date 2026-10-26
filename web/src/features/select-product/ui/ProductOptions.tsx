@@ -14,8 +14,7 @@ interface ProductOptionsProps {
 /** Продукты ингредиента «радиокнопками»: выбранный — тот, по которому семья считает рецепты. */
 export function ProductOptions({ ingredient, onSelected, onEdit }: ProductOptionsProps) {
   const select = useSelectProduct();
-  // Пока выбор сохраняется, отмечаем нажатый — иначе отметка вернулась бы на старый до ответа сервера.
-  const selectedId = select.isPending ? select.variables : ingredient.products.find((product) => product.isSelected)?.id;
+  const selectedId = select.selectedIdOf(ingredient);
 
   return (
     <div className={styles.options}>

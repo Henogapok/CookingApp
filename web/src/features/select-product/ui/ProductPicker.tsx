@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { productsQuery } from '@/entities/product';
+import { getErrorMessage } from '@/shared/api';
 import { routes } from '@/shared/config';
 import { Skeleton } from '@/shared/ui';
 import { ProductOptions } from './ProductOptions';
@@ -16,7 +17,7 @@ interface ProductPickerProps {
 
 /** Выбор продукта для ингредиента рецепта: продукты семьи и «Новый продукт». */
 export function ProductPicker({ ingredientId, ingredientName, onClose, variant }: ProductPickerProps) {
-  const { data, isPending } = useQuery(productsQuery());
+  const { data, isPending, error, refetch, isFetching } = useQuery(productsQuery());
   const navigate = useNavigate();
   const ingredient = data?.find((item) => item.ingredientCatalogId === ingredientId);
 
@@ -25,7 +26,15 @@ export function ProductPicker({ ingredientId, ingredientName, onClose, variant }
       {variant === 'sheet' && <span className={styles.handle} aria-hidden="true" />}
       {variant === 'sheet' && <h2 className={styles.title}>{ingredientName}</h2>}
       <p className={styles.hint}>Выбор действует во всех рецептах — у вас и у семьи.</p>
-      {isPending ? (
+      {/* Не загрузилось — говорим об этом, а не показываем пустой список: иначе создадут дубль продукта. */}
+      {!data && error ? (
+        <div className={styles.error} role="alert">
+          <span>{getErrorMessage(error)}</span>
+          <button type="button" className={styles.retry} disabled={isFetching} onClick={() => void refetch()}>
+            Повторить
+          </button>
+        </div>
+      ) : isPending ? (
         <Skeleton height={60} radius={14} />
       ) : (
         ingredient &&

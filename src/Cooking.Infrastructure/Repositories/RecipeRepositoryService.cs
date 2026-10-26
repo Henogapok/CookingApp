@@ -201,8 +201,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                 var nutrition = NutritionCalculator.ForIngredient(amounts[index]);
                 return new RecipeIngredientDto(
                     i.IngredientCatalogId, i.Name, i.Amount, i.UnitId, i.UnitName, i.UnitAbbreviation,
-                    // КБЖУ с упаковки продукта — уже не оценка ИИ.
-                    i.IsNutritionEstimatedByLlm && product?.Values.Per100 is null,
+                    NutritionCalculator.IsEstimatedByLlm(i.IsNutritionEstimatedByLlm, product?.Values),
                     nutrition.BaseAmount, i.BaseUnitAbbreviation, nutrition.Nutrition,
                     product?.Id, product?.Name);
             })
