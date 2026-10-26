@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { productsQuery } from '@/entities/product';
 import { ProductForm } from '@/features/edit-product';
 import { getErrorMessage } from '@/shared/api';
 import { routes } from '@/shared/config';
-import { useMediaQuery } from '@/shared/lib';
+import { useGoBack, useMediaQuery } from '@/shared/lib';
 import { BackButton, Skeleton } from '@/shared/ui';
 import { DesktopHeader } from '@/widgets/app-header';
 import styles from './ProductFormPage.module.css';
@@ -22,8 +22,6 @@ export function ProductFormPage({ userName, onSignOut }: ProductFormPageProps) {
   const isDesktop = useMediaQuery('(min-width: 900px)');
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const location = useLocation();
   const { data: ingredients, error } = useQuery(productsQuery());
 
   const ingredient = id
@@ -32,7 +30,7 @@ export function ProductFormPage({ userName, onSignOut }: ProductFormPageProps) {
   const product = id ? ingredient?.products.find((item) => item.id === id) : undefined;
 
   // Открыли ссылку напрямую — «назад» увёл бы из приложения, поэтому в «Мои продукты».
-  const goBack = () => (location.key !== 'default' ? void navigate(-1) : void navigate(routes.products, { replace: true }));
+  const goBack = useGoBack(routes.products);
 
   let body;
   if (ingredient) {

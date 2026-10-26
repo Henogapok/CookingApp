@@ -58,6 +58,7 @@ public class ProductRepositoryServiceTests
         var rice = Ingredient("Рис", gram, 345);
         var carrot = Ingredient("Морковь", gram, 35);
         var eggs = Ingredient("Яйца", gram, 157, pieceWeight: 55);
+        var salt = Ingredient("Соль", gram, 0);
 
         var recipe = new Recipe
         {
@@ -71,6 +72,7 @@ public class ProductRepositoryServiceTests
                 new RecipeIngredient { IngredientCatalog = milk, Amount = 200, UnitId = ml.Id, SortOrder = 1 },
                 new RecipeIngredient { IngredientCatalog = rice, Amount = 500, UnitId = gram.Id, SortOrder = 2 },
                 new RecipeIngredient { IngredientCatalog = carrot, Amount = 100, UnitId = gram.Id, SortOrder = 3 },
+                new RecipeIngredient { IngredientCatalog = salt, SortOrder = 4 }, // по вкусу
             ],
         };
 
@@ -127,7 +129,7 @@ public class ProductRepositoryServiceTests
 
         var household = (await repository.GetHouseholdAsync(s.MashaId, CancellationToken.None)).Value;
 
-        // Из рецепта — молоко, рис, морковь; яйца — только из-за продукта.
+        // Из рецепта — молоко, рис, морковь (соль «по вкусу» — нет); яйца — только из-за продукта.
         Assert.Equal(["Молоко 3,2%", "Морковь", "Рис", "Яйца"], household.Select(i => i.Name));
         var carrot = household.Single(i => i.Name == "Морковь");
         Assert.Equal(1, carrot.RecipeCount);

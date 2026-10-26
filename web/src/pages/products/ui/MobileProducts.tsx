@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { formatPackage, formatPricePer100, sortProducts, type IngredientProducts } from '@/entities/product';
+import { formatProductDetails, sortProducts, type IngredientProducts } from '@/entities/product';
 import { useSelectProduct } from '@/features/select-product';
 import { routes } from '@/shared/config';
 import { Skeleton } from '@/shared/ui';
@@ -10,13 +10,13 @@ import type { ProductsListProps } from './ProductsListProps';
 import styles from './MobileProducts.module.css';
 
 /** Телефон: цветная шапка с поиском и фильтром, ниже — карточка на каждый ингредиент с продуктами-чипами. */
-export function MobileProducts({ subtitle, ingredients, errorBlock, ...filters }: ProductsListProps) {
+export function MobileProducts({ subtitle, ingredients, errorBlock, query, onQuery, filter, onFilter, missingCount }: ProductsListProps) {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <h1 className={styles.title}>Мои продукты</h1>
         <p className={styles.subtitle}>{subtitle}</p>
-        <ProductsFilters {...filters} />
+        <ProductsFilters query={query} onQuery={onQuery} filter={filter} onFilter={onFilter} missingCount={missingCount} />
       </header>
 
       <main className={styles.list} aria-busy={!ingredients}>
@@ -67,15 +67,7 @@ function IngredientCard({ ingredient }: IngredientCardProps) {
           </div>
           {selected && (
             <div className={styles.summary}>
-              <span className={styles.details}>
-                {[
-                  formatPackage(selected) ?? 'цена не указана',
-                  selected.pricePer100 !== null && formatPricePer100(selected.pricePer100, ingredient.baseUnitAbbreviation),
-                  selected.per100 ? 'КБЖУ с упаковки' : 'КБЖУ из каталога',
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
+              <span className={styles.details}>{formatProductDetails(selected, ingredient.baseUnitAbbreviation)}</span>
               <Link to={routes.productEdit(selected.id)} className={styles.edit}>
                 Изменить
               </Link>

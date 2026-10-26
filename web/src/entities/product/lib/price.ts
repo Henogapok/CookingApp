@@ -32,3 +32,14 @@ export function formatPackage(product: Pick<Product, 'packagePrice' | 'packageAm
 export function formatPricePer100(price: number, baseUnitAbbreviation: string): string {
   return `${number.format(Math.round(price * 10) / 10)} ₸ за 100 ${baseUnitAbbreviation}`;
 }
+
+/** Строка о продукте: «520 ₸ за 1 л · 52 ₸ за 100 мл · КБЖУ с упаковки». */
+export function formatProductDetails(product: Product, baseUnitAbbreviation: string): string {
+  return [
+    formatPackage(product) ?? 'цена не указана',
+    product.pricePer100 !== null && formatPricePer100(product.pricePer100, baseUnitAbbreviation),
+    product.per100 ? 'КБЖУ с упаковки' : 'КБЖУ из каталога',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}

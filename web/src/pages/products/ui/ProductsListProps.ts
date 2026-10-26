@@ -10,8 +10,10 @@ export interface ProductsListProps {
   filter: ProductsFilter;
   onFilter: (filter: ProductsFilter) => void;
   missingCount: number;
-  /** undefined — ещё грузится. */
+  /** После поиска и фильтра; undefined — ещё грузится. */
   ingredients: IngredientProducts[] | undefined;
+  /** Все ингредиенты: открытая панель не должна пропадать, когда поиск скрыл её строку. */
+  allIngredients: IngredientProducts[] | undefined;
   /** Ошибка загрузки, когда показать нечего. */
   errorBlock: ReactNode;
 }

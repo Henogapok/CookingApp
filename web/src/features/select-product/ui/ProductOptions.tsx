@@ -1,4 +1,4 @@
-import { formatPackage, formatPricePer100, sortProducts, type IngredientProducts } from '@/entities/product';
+import { formatProductDetails, sortProducts, type IngredientProducts } from '@/entities/product';
 import { getErrorMessage } from '@/shared/api';
 import { useSelectProduct } from '../api/useSelectProduct';
 import styles from './ProductOptions.module.css';
@@ -22,11 +22,6 @@ export function ProductOptions({ ingredient, onSelected, onEdit }: ProductOption
       <ul className={styles.list}>
         {sortProducts(ingredient.products).map((product) => {
           const selected = product.id === selectedId;
-          const details = [
-            formatPackage(product) ?? 'цена не указана',
-            product.pricePer100 !== null && formatPricePer100(product.pricePer100, ingredient.baseUnitAbbreviation),
-            product.per100 ? 'КБЖУ с упаковки' : 'КБЖУ из каталога',
-          ].filter(Boolean);
 
           return (
             <li key={product.id} className={selected ? `${styles.option} ${styles.selected}` : styles.option}>
@@ -43,7 +38,7 @@ export function ProductOptions({ ingredient, onSelected, onEdit }: ProductOption
                 <span className={styles.radio} aria-hidden="true" />
                 <span className={styles.text}>
                   <span className={styles.name}>{product.name}</span>
-                  <span className={styles.details}>{details.join(' · ')}</span>
+                  <span className={styles.details}>{formatProductDetails(product, ingredient.baseUnitAbbreviation)}</span>
                 </span>
               </button>
               {onEdit && (

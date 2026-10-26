@@ -9,9 +9,10 @@ import type { ProductsListProps } from './ProductsListProps';
 import styles from './DesktopProducts.module.css';
 
 /** Компьютер: таблица ингредиентов, справа — продукты выбранного ингредиента и форма продукта. */
-export function DesktopProducts({ subtitle, ingredients, errorBlock, ...filters }: ProductsListProps) {
+export function DesktopProducts({ subtitle, ingredients, allIngredients, errorBlock, ...filters }: ProductsListProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const active = ingredients?.find((item) => item.ingredientCatalogId === activeId) ?? ingredients?.[0];
+  // Открытая панель остаётся, даже если поиск или фильтр скрыли её строку: иначе пропала бы недозаполненная форма.
+  const active = allIngredients?.find((item) => item.ingredientCatalogId === activeId) ?? ingredients?.[0];
 
   return (
     <div className={styles.page}>
@@ -67,6 +68,8 @@ interface IngredientPanelProps {
 /** Панель ингредиента: какие продукты есть и какой выбран, ниже — новый продукт или правка выбранного «Изменить». */
 function IngredientPanel({ ingredient }: IngredientPanelProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Номер формы «Новый продукт»: после сохранения — новая пустая форма, иначе повторный клик создал бы дубль.
+  const [newFormNumber, setNewFormNumber] = useState(0);
   const editing = ingredient.products.find((product) => product.id === editingId);
 
   return (
@@ -94,10 +97,13 @@ function IngredientPanel({ ingredient }: IngredientPanelProps) {
           )}
         </div>
         <ProductForm
-          key={editing?.id ?? 'new'}
+          key={editing?.id ?? `new-${newFormNumber}`}
           ingredient={ingredient}
           product={editing}
-          onDone={() => setEditingId(null)}
+          onDone={() => {
+            setEditingId(null);
+            setNewFormNumber((number) => number + 1);
+          }}
         />
       </div>
     </aside>

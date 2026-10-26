@@ -19,10 +19,25 @@ export type ProductFormErrors = Partial<Record<'name' | 'price' | 'amount' | 'nu
 
 export type ProductFormResult = { ok: true; input: ProductInput } | { ok: false; errors: ProductFormErrors };
 
-const positive = (value: number | null) => value !== null && !Number.isNaN(value) && value > 0;
+export interface ProductFormRules {
+  /** КБЖУ ингредиента на 100 г (а не на 100 мл): Б+Ж+У не больше 100 г. */
+  perGram: boolean;
+}
 
-/** Проверка и перевод полей формы в тело запроса. Сервер проверяет то же самое — здесь, чтобы ответить сразу и у поля. */
-export function toProductInput(ingredientCatalogId: string, values: ProductFormValues): ProductFormResult {
+/** Знаков после запятой в набранном числе. */
+const decimals = (text: string) => text.trim().replace(',', '.').split('.')[1]?.length ?? 0;
+
+/** Ошибка числа поля или null — те же границы, что у сервера (ProductFieldsValidator). */
+function numberError(text: string, value: number | null, label: string, max: number, maxDecimals: number): string | null {
+  if (value === null) return `Введите ${label}`;
+  if (Number.isNaN(value) || value <= 0) return 'Нужно положительное число';
+  if (value > max) return 'Слишком большое значение';
+  if (decimals(text) > maxDecimals) return `Не больше ${maxDecimals} знаков после запятой`;
+  return null;
+}
+
+/** Проверка и перевод полей формы в тело запроса. Правила — как на сервере, чтобы ответить сразу и у поля. */
+export function toProductInput(ingredientCatalogId: string, values: ProductFormValues, rules: ProductFormRules): ProductFormResult {
   const errors: ProductFormErrors = {};
 
   const name = values.name.trim();
@@ -32,13 +47,20 @@ export function toProductInput(ingredientCatalogId: string, values: ProductFormV
   const price = parseDecimal(values.price);
   const amount = parseDecimal(values.amount);
   if (price !== null || amount !== null) {
-    if (!positive(price)) errors.price = price === null ? 'Введите цену' : 'Цена — положительное число';
-    if (!positive(amount)) errors.amount = amount === null ? 'Введите размер упаковки' : 'Размер — положительное число';
+    const priceError = numberError(values.price, price, 'цену', 10_000_000, 2);
+    const amountError = numberError(values.amount, amount, 'размер упаковки', 100_000, 3);
+    if (priceError) errors.price = priceError;
+    if (amountError) errors.amount = amountError;
   }
 
   const macros = [values.calories, values.protein, values.fat, values.carbs].map(parseDecimal);
-  if (values.ownNutrition && macros.some((value) => value === null || Number.isNaN(value)))
-    errors.nutrition = 'Заполните все четыре значения — или выберите «Из каталога»';
+  if (values.ownNutrition) {
+    const [calories, protein, fat, carbs] = macros;
+    if (macros.some((value) => value === null)) errors.nutrition = 'Заполните все четыре значения — или выберите «Из каталога»';
+    else if (macros.some((value) => Number.isNaN(value))) errors.nutrition = 'КБЖУ — числа от 0, например 3,2';
+    else if (calories! > 1500 || [protein, fat, carbs].some((value) => value! > 200)) errors.nutrition = 'Слишком большое значение';
+    else if (rules.perGram && protein! + fat! + carbs! > 100) errors.nutrition = 'Белков, жиров и углеводов вместе не больше 100 г на 100 г';
+  }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 

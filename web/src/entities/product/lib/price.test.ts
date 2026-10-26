@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { packageUnits } from '../model/packageUnits';
-import { formatPackage, formatPricePer100, parseDecimal, pricePer100 } from './price';
+import { formatPackage, formatPricePer100, formatProductDetails, parseDecimal, pricePer100 } from './price';
 
 const unit = (label: string) => packageUnits.find((item) => item.label === label)!.id;
 
@@ -51,5 +51,29 @@ describe('formatPackage', () => {
 describe('formatPricePer100', () => {
   it('округляет до десятых', () => {
     expect(formatPricePer100(143.333, 'г')).toBe('143,3 ₸ за 100 г');
+  });
+});
+
+describe('formatProductDetails', () => {
+  const product = {
+    id: 'p',
+    name: 'Lactel',
+    packagePrice: 520,
+    packageAmount: 1,
+    packageUnitId: 'l',
+    packageUnitAbbreviation: 'л',
+    pricePer100: 52,
+    per100: null,
+    isSelected: true,
+  };
+
+  it('цена, цена за 100 и откуда КБЖУ', () => {
+    expect(formatProductDetails(product, 'мл')).toBe('520 ₸ за 1 л · 52 ₸ за 100 мл · КБЖУ из каталога');
+  });
+
+  it('без цены → «цена не указана»', () => {
+    expect(
+      formatProductDetails({ ...product, packagePrice: null, packageAmount: null, pricePer100: null, per100: { calories: 1, protein: 1, fat: 1, carbs: 1 } }, 'мл'),
+    ).toBe('цена не указана · КБЖУ с упаковки');
   });
 });

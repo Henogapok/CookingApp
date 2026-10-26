@@ -55,7 +55,7 @@ function createRouter() {
         { path: routes.recipeList, element: <RecipeListRoute /> },
         { path: routes.recipe(':id'), element: <RecipeRoute /> },
         { path: routes.products, element: <ProductsRoute /> },
-        { path: '/products/new', element: <ProductFormRoute /> },
+        { path: routes.productCreate, element: <ProductFormRoute /> },
         { path: routes.productEdit(':id'), element: <ProductFormRoute /> },
         // Неизвестный адрес (и /auth/callback после входа) — на список.
         { path: '*', element: <Navigate to={routes.recipeList} replace /> },

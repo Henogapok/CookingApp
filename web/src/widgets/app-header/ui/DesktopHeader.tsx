@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Link, NavLink, useLocation } from 'react-router';
+import { Link, matchPath, NavLink, useLocation } from 'react-router';
 import { routes } from '@/shared/config';
 import { ProfileButton, ProfileMenu } from './ProfileMenu';
 import styles from './DesktopHeader.module.css';
@@ -21,7 +21,7 @@ interface DesktopHeaderProps {
  */
 export function DesktopHeader({ userName, onSignOut, collapsed, title, children }: DesktopHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const isRecipe = useLocation().pathname.startsWith('/recipes/');
+  const isRecipe = matchPath(routes.recipe(':id'), useLocation().pathname) !== null;
   const tabClass = (active: boolean) => (active ? `${styles.tab} ${styles.tabActive}` : styles.tab);
   const classes = [styles.band, collapsed && styles.collapsed, !children && styles.bare].filter(Boolean).join(' ');
 

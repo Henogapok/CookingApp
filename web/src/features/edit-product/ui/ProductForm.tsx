@@ -57,20 +57,20 @@ export function ProductForm({ ingredient, product, onDone }: ProductFormProps) {
       queryClient.invalidateQueries({ queryKey: productKeys.all }),
       queryClient.invalidateQueries({ queryKey: recipeKeys.all }),
     ]);
+  // Сначала уходим, потом обновляем кэш: если ждать перезапроса, удалённый продукт пропадёт из списка раньше,
+  // чем закроется экран, и на миг мелькнёт «Продукт не найден».
+  const finish = () => {
+    onDone();
+    void invalidate();
+  };
   const save = useMutation({
     mutationFn: (input: Parameters<typeof createProduct>[0]) =>
       product ? updateProduct(product.id, input) : createProduct(input).then(() => undefined),
-    onSuccess: async () => {
-      await invalidate();
-      onDone();
-    },
+    onSuccess: finish,
   });
   const remove = useMutation({
     mutationFn: () => deleteProduct(product!.id),
-    onSuccess: async () => {
-      await invalidate();
-      onDone();
-    },
+    onSuccess: finish,
   });
 
   // Поправили поле — его ошибка уходит сразу, не дожидаясь следующего «Сохранить».
@@ -106,7 +106,7 @@ export function ProductForm({ ingredient, product, onDone }: ProductFormProps) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const result = toProductInput(ingredient.ingredientCatalogId, values);
+    const result = toProductInput(ingredient.ingredientCatalogId, values, { perGram: ingredient.baseUnitId !== milliliterUnitId });
     setErrors(result.ok ? {} : result.errors);
     if (result.ok) save.mutate(result.input);
   };

@@ -49,6 +49,7 @@ export function ProductsPage({ userName, onSignOut }: ProductsPageProps) {
     onFilter: setFilter,
     missingCount,
     ingredients: filtered,
+    allIngredients: ingredients,
     errorBlock,
   };
 

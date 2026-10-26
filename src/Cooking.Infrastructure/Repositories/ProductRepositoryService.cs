@@ -19,9 +19,10 @@ public class ProductRepositoryService(IDataContext dataContext) : IProductReposi
             return UserNotFound(userId);
 
         // Рецептов у семьи сотни — пары «рецепт — ингредиент» считаем в памяти, а не группировкой в SQL.
+        // «По вкусу» (соль, перец) в стоимость не входит — продукт для него не нужен, и в список он не попадает.
         var recipeIngredients = await dataContext.Recipes
             .Where(HouseholdAccess.Recipes(user))
-            .SelectMany(r => r.Ingredients.Select(i => new { RecipeId = r.Id, i.IngredientCatalogId }))
+            .SelectMany(r => r.Ingredients.Where(i => i.Amount != null).Select(i => new { RecipeId = r.Id, i.IngredientCatalogId }))
             .ToListAsync(cancellationToken);
         var recipeCounts = recipeIngredients
             .Distinct()
