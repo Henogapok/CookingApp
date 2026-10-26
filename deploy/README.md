@@ -60,6 +60,7 @@ openssl rand -hex 32
 | `ANTHROPIC_API_KEY` | ключ Anthropic |
 | `OPENAI_API_KEY` | ключ OpenAI (Whisper); можно не задавать — Reels будут разбираться только по описанию |
 | `DEPLOY_KNOWN_HOSTS` | ключ сервера для SSH — вывод `ssh-keyscan -t ed25519 80.240.24.108` (одна строка). Сверьте отпечаток: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` на сервере должен совпасть с `ssh-keyscan -t ed25519 80.240.24.108 \| ssh-keygen -lf -` у себя |
+| `ADMIN_TELEGRAM_ID` | ваш Telegram Id (число, узнать — у @userinfobot): токены этого пользователя получают роль admin и могут менять общие справочники. Пустой или не число — деплой остановится |
 
 Значения секретов не должны содержать одинарную кавычку и перевод строки — деплой проверит это и остановится.
 
@@ -70,7 +71,6 @@ openssl rand -hex 32
 | `DEPLOY_HOST` | `80.240.24.108` |
 | `DEPLOY_USER` | `linuxuser` |
 | `DOMAIN` | `cocking.fyi` |
-| `ADMIN_TELEGRAM_ID` | ваш Telegram Id (число, узнать — у @userinfobot): токены этого пользователя получают роль admin и могут менять общие справочники. Без переменной `docker compose up` остановится с ошибкой |
 
 ### 4. Первый деплой
 

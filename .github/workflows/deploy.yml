@@ -106,7 +106,7 @@ jobs:
       - name: Write .env
         env:
           DOMAIN: ${{ vars.DOMAIN }}
-          ADMIN_TELEGRAM_ID: ${{ vars.ADMIN_TELEGRAM_ID }}
+          ADMIN_TELEGRAM_ID: ${{ secrets.ADMIN_TELEGRAM_ID }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
@@ -118,7 +118,7 @@ jobs:
           umask 077
           # Пустой или не числовой Id упал бы позже: compose (${ADMIN_TELEGRAM_ID:?}) или Auth при старте.
           if ! [[ "$ADMIN_TELEGRAM_ID" =~ ^[0-9]+$ ]]; then
-            echo "::error::Variable ADMIN_TELEGRAM_ID must be a numeric Telegram Id"; exit 1
+            echo "::error::Secret ADMIN_TELEGRAM_ID must be a numeric Telegram Id"; exit 1
           fi
           for name in DOMAIN ADMIN_TELEGRAM_ID POSTGRES_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET ANTHROPIC_API_KEY OPENAI_API_KEY; do
             case "${!name}" in
