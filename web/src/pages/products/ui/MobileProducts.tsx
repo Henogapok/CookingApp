@@ -3,6 +3,7 @@ import { formatPackage, formatPricePer100, sortProducts, type IngredientProducts
 import { useSelectProduct } from '@/features/select-product';
 import { routes } from '@/shared/config';
 import { Skeleton } from '@/shared/ui';
+import { TabBar } from '@/widgets/tab-bar';
 import { formatRecipeCount } from '../lib/filterIngredients';
 import { ProductsFilters } from './ProductsFilters';
 import type { ProductsListProps } from './ProductsListProps';
@@ -13,23 +14,6 @@ export function MobileProducts({ subtitle, ingredients, errorBlock, ...filters }
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        {/* Ссылка, а не «назад» по истории: из формы продукта история ведёт обратно сюда, и выйти было бы нельзя. */}
-        <Link to={routes.recipeList} className={styles.back}>
-          <svg
-            aria-hidden="true"
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M15 5l-7 7 7 7" />
-          </svg>
-          Рецепты
-        </Link>
         <h1 className={styles.title}>Мои продукты</h1>
         <p className={styles.subtitle}>{subtitle}</p>
         <ProductsFilters {...filters} />
@@ -41,6 +25,7 @@ export function MobileProducts({ subtitle, ingredients, errorBlock, ...filters }
         {ingredients?.length === 0 && <p className={styles.empty}>Ничего не нашлось</p>}
         {ingredients?.map((ingredient) => <IngredientCard key={ingredient.ingredientCatalogId} ingredient={ingredient} />)}
       </main>
+      <TabBar />
     </div>
   );
 }

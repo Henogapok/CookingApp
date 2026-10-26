@@ -6,34 +6,14 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: env(safe-area-inset-top) 20px 16px;
+  padding: calc(env(safe-area-inset-top) + 16px) 20px 16px;
   border-radius: 0 0 28px 28px;
   background: var(--top-bg);
   color: var(--top-text);
 }
 
-/* «‹ Рецепты» — большая цель для пальца, как на странице рецепта. */
-.back {
-  align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 44px;
-  margin: 4px 0 0 -12px;
-  padding: 0 8px 0 4px;
-  border: 0;
-  border-radius: 12px;
-  background: none;
-  color: inherit;
-  font: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-
 .title {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 28px;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -50,7 +30,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 20px calc(24px + env(safe-area-inset-bottom));
+  /* Снизу — место под нижние вкладки (64px + safe area, см. widgets/tab-bar). */
+  padding: 14px 20px calc(84px + env(safe-area-inset-bottom));
 }
 
 .empty {

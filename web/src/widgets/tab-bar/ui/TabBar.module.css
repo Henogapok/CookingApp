@@ -1,0 +1,40 @@
+/*
+ * Прибита к низу, над полоской «домой» iPhone (safe area). Высота 64px + safe area — экраны с панелью
+ * оставляют под ней столько же места снизу (padding-bottom), чтобы последняя карточка не пряталась.
+ */
+.bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  padding: 6px 8px env(safe-area-inset-bottom);
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+
+/* Подпись переносится на вторую строку сама, когда вкладок станет больше и места не хватит. */
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 52px;
+  padding: 4px;
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+}
+
+.active {
+  color: var(--accent);
+  font-weight: 700;
+}

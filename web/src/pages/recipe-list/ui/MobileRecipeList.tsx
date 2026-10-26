@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { mealGroups, RecipeCard, RecipeCardSkeleton, type MealGroupId, type RecipeSummary } from '@/entities/recipe';
 import { useCollapseOnScroll } from '@/shared/lib';
 import { ProfileButton, ProfileMenu } from '@/widgets/app-header';
+import { TabBar } from '@/widgets/tab-bar';
 import { RecipeSearchInput } from './RecipeSearchInput';
 import styles from './MobileRecipeList.module.css';
 
@@ -76,6 +77,7 @@ export function MobileRecipeList({
       </header>
 
       <main className={styles.content}>{content}</main>
+      <TabBar />
 
       {menuOpen && (
         <ProfileMenu variant="sheet" userName={userName} onSignOut={onSignOut} onClose={() => setMenuOpen(false)} />

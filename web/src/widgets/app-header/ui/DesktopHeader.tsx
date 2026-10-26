@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, NavLink, useLocation } from 'react-router';
 import { routes } from '@/shared/config';
 import { ProfileButton, ProfileMenu } from './ProfileMenu';
 import styles from './DesktopHeader.module.css';
@@ -17,10 +17,12 @@ interface DesktopHeaderProps {
 
 /**
  * Цветная шапка компьютерной версии — одна на все экраны, чтобы при переходе она не пропадала:
- * витрина разворачивает её с заголовком и поиском, остальные экраны показывают свёрнутой.
+ * витрина разворачивает её с заголовком и поиском, остальные экраны показывают свёрнутой. В строке логотипа — вкладки разделов.
  */
 export function DesktopHeader({ userName, onSignOut, collapsed, title, children }: DesktopHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const isRecipe = useLocation().pathname.startsWith('/recipes/');
+  const tabClass = (active: boolean) => (active ? `${styles.tab} ${styles.tabActive}` : styles.tab);
   const classes = [styles.band, collapsed && styles.collapsed, !children && styles.bare].filter(Boolean).join(' ');
 
   return (
@@ -29,6 +31,15 @@ export function DesktopHeader({ userName, onSignOut, collapsed, title, children 
         <Link to={routes.recipeList} className={styles.logo}>
           Cooking
         </Link>
+        <nav className={styles.tabs} aria-label="Разделы">
+          {/* end: «/» иначе подсвечивался бы на любом адресе. Рецепт (/recipes/…) — всё равно раздел «Рецепты». */}
+          <NavLink to={routes.recipeList} className={({ isActive }) => tabClass(isActive || isRecipe)} end>
+            Рецепты
+          </NavLink>
+          <NavLink to={routes.products} className={({ isActive }) => tabClass(isActive)}>
+            Мои продукты
+          </NavLink>
+        </nav>
         <ProfileButton userName={userName} onClick={() => setMenuOpen(true)} className={styles.avatar} />
         {title && (
           <h1 className={styles.title} inert={collapsed}>

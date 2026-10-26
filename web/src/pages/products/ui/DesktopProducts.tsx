@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { formatPackage, type IngredientProducts } from '@/entities/product';
 import { ProductForm } from '@/features/edit-product';
 import { ProductOptions } from '@/features/select-product';
-import { Link } from 'react-router';
-import { routes } from '@/shared/config';
 import { Skeleton } from '@/shared/ui';
 import { formatRecipeCount } from '../lib/filterIngredients';
 import { ProductsFilters } from './ProductsFilters';
@@ -17,9 +15,6 @@ export function DesktopProducts({ subtitle, ingredients, errorBlock, ...filters 
 
   return (
     <div className={styles.page}>
-      <Link to={routes.recipeList} className={styles.backLink}>
-        ← Все рецепты
-      </Link>
       <section className={styles.intro}>
         <div>
           <h1 className={styles.title}>Мои продукты</h1>

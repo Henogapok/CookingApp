@@ -38,6 +38,39 @@
   text-decoration: none;
 }
 
+/* Вкладки разделов — в строке логотипа, правее него. */
+.tabs {
+  position: absolute;
+  top: 20px;
+  left: 160px;
+  display: flex;
+  gap: 6px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 20px;
+  color: var(--top-muted);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--top-text);
+}
+
+.tabActive,
+.tabActive:hover {
+  background: var(--chip-selected-bg);
+  color: var(--chip-selected-text);
+  font-weight: 700;
+}
+
 .avatar {
   position: absolute;
   top: 18px;
@@ -55,7 +88,7 @@
   transition: height var(--ease), opacity var(--ease);
 }
 
-/* Свёрнуто: слева место под логотип, справа — под профиль (44 + 20px). */
+/* Свёрнуто: слева место под логотип и вкладки, справа — под профиль (44 + 20px). */
 .search {
   display: flex;
   margin-top: 18px;
@@ -73,9 +106,10 @@
   opacity: 0;
 }
 
+/* Свёрнуто поиск поднимается в строку логотипа — правее вкладок разделов. */
 .collapsed .search {
   margin-top: -64px;
-  padding-left: 140px;
+  padding-left: 400px;
   padding-right: 64px;
 }
 
