@@ -84,7 +84,10 @@ export function ProductForm({ ingredient, product, onDone }: ProductFormProps) {
     price !== null && amount !== null && !Number.isNaN(price) && !Number.isNaN(amount)
       ? pricePer100(price, amount, values.unitId, ingredient.pieceWeight)
       : null;
-  const base = ingredient.baseUnitAbbreviation;
+  // Подпись «на 100 мл / 100 г» — по единице упаковки: молоко покупают литрами, даже если в каталоге оно в граммах
+  // (г и мл считаются 1:1, числа те же). Штуки — по единице ингредиента.
+  const packageUnit = packageUnits.find((unit) => unit.id === values.unitId);
+  const base = packageUnit && packageUnit.size !== null ? (packageUnit.volume ? 'мл' : 'г') : ingredient.baseUnitAbbreviation;
   const catalog = ingredient.catalogPer100;
 
   const submit = (event: FormEvent) => {

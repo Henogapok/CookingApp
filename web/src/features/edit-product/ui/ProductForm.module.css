@@ -4,10 +4,12 @@
   gap: 22px;
 }
 
+/* У fieldset по умолчанию min-width: min-content — без 0 группа не сжимается под узкую панель и поля вылезают. */
 .group {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
@@ -42,6 +44,7 @@
 .input {
   box-sizing: border-box;
   width: 100%;
+  min-width: 0;
   height: 48px;
   padding: 0 14px;
   border: 1px solid var(--border);
@@ -70,9 +73,11 @@
   background: var(--card);
 }
 
+/* width: 0 — у поля ввода своя ширина «на 20 символов», из-за неё рамка не сжимается; ширину даёт flex. */
 .inner {
   flex: 1;
   min-width: 0;
+  width: 0;
   height: 100%;
   padding: 0;
   border: 0;
