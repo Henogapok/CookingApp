@@ -34,7 +34,7 @@ public static class UserPrincipalFactory
         identity.SetClaim(Claims.GivenName, user.FirstName);
         identity.SetClaim(Claims.FamilyName, user.LastName);
         identity.SetClaim(AuthConstants.TelegramIdClaim, user.TelegramId.ToString());
-        identity.SetClaims(Claims.Role, roles.ToImmutableArray());
+        identity.SetClaims(UserRoles.ClaimType, roles.ToImmutableArray());
 
         identity.SetScopes(scopes);
         // Токен со scope'ом API адресован API (aud): Cooking.Api принимает только такие.
@@ -45,7 +45,10 @@ public static class UserPrincipalFactory
         return new ClaimsPrincipal(identity);
     }
 
-    /// <summary>Роли пользователя. Считаются при каждой выдаче токенов, поэтому снятая роль пропадает с ближайшим обновлением токена.</summary>
+    /// <summary>
+    /// Роли пользователя. Считаются при каждой выдаче и обновлении токенов: убрали Id из Admin:TelegramIds и перезапустили Auth
+    /// (переменные окружения контейнера меняются только с перезапуском) — роль пропадёт с ближайшим обновлением access token.
+    /// </summary>
     public static IReadOnlyList<string> GetRoles(UserDto user, AdminOptions admin) =>
         admin.TelegramIds.Contains(user.TelegramId) ? [UserRoles.Admin] : [];
 

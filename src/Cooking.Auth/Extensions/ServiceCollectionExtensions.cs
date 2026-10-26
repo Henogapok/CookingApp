@@ -20,7 +20,8 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.Configure<TelegramOptions>(configuration.GetSection(TelegramOptions.SectionName));
-        services.Configure<AdminOptions>(configuration.GetSection(AdminOptions.SectionName));
+        // Привязка проверяется при старте: Id не числом («@name», «1,2») уронил бы каждый вход 500-й, а не запуск.
+        services.AddOptions<AdminOptions>().Bind(configuration.GetSection(AdminOptions.SectionName)).ValidateOnStart();
 
         services.AddHttpClient();
         services.AddSingleton<TelegramBotInfo>();

@@ -1,5 +1,3 @@
-using System.Security.Claims;
-using Cooking.Application.Users;
 using Cooking.Auth.Identity;
 using Cooking.Auth.Options;
 using Cooking.Auth.Services;
@@ -46,9 +44,11 @@ public class AuthorizationController(UserResolver users, IOptions<AdminOptions> 
 
         if (user is not null)
         {
-            logger.LogInformation("Authorize: code issued to client {ClientId} for user {UserId}, scopes {Scopes}",
-                request.ClientId, user.Id, request.GetScopes());
-            return SignIn(CreateForTokens(user, request.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            var roles = UserPrincipalFactory.GetRoles(user, admin.Value);
+            logger.LogInformation("Authorize: code issued to client {ClientId} for user {UserId}, scopes {Scopes}, roles {Roles}",
+                request.ClientId, user.Id, request.GetScopes(), roles);
+            return SignIn(UserPrincipalFactory.CreateForTokens(user, request.GetScopes(), roles),
+                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         logger.LogInformation("Authorize: client {ClientId}, no session → {Outcome}",
@@ -85,9 +85,11 @@ public class AuthorizationController(UserResolver users, IOptions<AdminOptions> 
             return Forbid(Errors.InvalidGrant, "The user no longer exists.");
         }
 
-        logger.LogInformation("Token: tokens issued to client {ClientId} for user {UserId} by {GrantType}",
-            request.ClientId, user.Id, request.GrantType);
-        return SignIn(CreateForTokens(user, granted.Principal!.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        var tokenRoles = UserPrincipalFactory.GetRoles(user, admin.Value);
+        logger.LogInformation("Token: tokens issued to client {ClientId} for user {UserId} by {GrantType}, roles {Roles}",
+            request.ClientId, user.Id, request.GrantType, tokenRoles);
+        return SignIn(UserPrincipalFactory.CreateForTokens(user, granted.Principal!.GetScopes(), tokenRoles),
+            OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     /// <summary>
@@ -104,9 +106,6 @@ public class AuthorizationController(UserResolver users, IOptions<AdminOptions> 
         // Без post_logout_redirect_uri (или с незарегистрированным) OpenIddict вернёт на страницу входа.
         return SignOut(new AuthenticationProperties { RedirectUri = "/login" }, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
-
-    private ClaimsPrincipal CreateForTokens(UserDto user, IEnumerable<string> scopes) =>
-        UserPrincipalFactory.CreateForTokens(user, scopes, UserPrincipalFactory.GetRoles(user, admin.Value));
 
     /// <summary>На страницу входа с возвратом сюда же — с теми же параметрами, но без prompt (иначе prompt=login зациклится).</summary>
     private ChallengeResult RedirectToLogin()

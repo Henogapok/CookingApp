@@ -6,6 +6,9 @@ namespace Cooking.Application.Users;
 /// </summary>
 public static class UserRoles
 {
+    /// <summary>Claim с ролями в access token (стандартное имя из OpenID Connect, у OpenIddict — Claims.Role).</summary>
+    public const string ClaimType = "role";
+
     /// <summary>Правит общие справочники и каталог ингредиентов.</summary>
     public const string Admin = "admin";
 }
