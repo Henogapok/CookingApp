@@ -106,6 +106,7 @@ jobs:
       - name: Write .env
         env:
           DOMAIN: ${{ vars.DOMAIN }}
+          ADMIN_TELEGRAM_ID: ${{ vars.ADMIN_TELEGRAM_ID }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
@@ -115,7 +116,7 @@ jobs:
         # Одинарной кавычки и перевода строки в секретах быть не должно — проверяем, а не пишем битый .env.
         run: |
           umask 077
-          for name in DOMAIN POSTGRES_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET ANTHROPIC_API_KEY OPENAI_API_KEY; do
+          for name in DOMAIN ADMIN_TELEGRAM_ID POSTGRES_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET ANTHROPIC_API_KEY OPENAI_API_KEY; do
             case "${!name}" in
               *"'"* | *$'\n'*) echo "::error::$name contains a single quote or a line break"; exit 1 ;;
             esac
@@ -123,6 +124,7 @@ jobs:
           {
             printf "DOMAIN='%s'\n" "$DOMAIN"
             printf "IMAGE_TAG='%s'\n" "$GITHUB_SHA"
+            printf "ADMIN_TELEGRAM_ID='%s'\n" "$ADMIN_TELEGRAM_ID"
             printf "POSTGRES_PASSWORD='%s'\n" "$POSTGRES_PASSWORD"
             printf "TELEGRAM_BOT_TOKEN='%s'\n" "$TELEGRAM_BOT_TOKEN"
             printf "TELEGRAM_WEBHOOK_SECRET='%s'\n" "$TELEGRAM_WEBHOOK_SECRET"

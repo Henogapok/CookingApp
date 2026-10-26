@@ -70,6 +70,7 @@ openssl rand -hex 32
 | `DEPLOY_HOST` | `80.240.24.108` |
 | `DEPLOY_USER` | `linuxuser` |
 | `DOMAIN` | `cocking.fyi` |
+| `ADMIN_TELEGRAM_ID` | ваш Telegram Id (число, узнать — у @userinfobot): токены этого пользователя получают роль admin и могут менять общие справочники. Без переменной `docker compose up` остановится с ошибкой |
 
 ### 4. Первый деплой
 

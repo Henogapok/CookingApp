@@ -1,9 +1,13 @@
+using System.Security.Claims;
+using Cooking.Application.Users;
 using Cooking.Auth.Identity;
+using Cooking.Auth.Options;
 using Cooking.Auth.Services;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -15,7 +19,7 @@ namespace Cooking.Auth.Controllers;
 /// делает OpenIddict до того, как запрос дойдёт сюда; контроллер только отвечает, кто пользователь.
 /// </summary>
 /// В лог — кто и какому клиенту получил code/токены; сами code, code_verifier и токены — никогда.
-public class AuthorizationController(UserResolver users, ILogger<AuthorizationController> logger) : Controller
+public class AuthorizationController(UserResolver users, IOptions<AdminOptions> admin, ILogger<AuthorizationController> logger) : Controller
 {
     /// <summary>
     /// Начало входа: клиент (PWA, Swagger) перенаправляет сюда браузер. Нет сессии — отправляем на страницу входа,
@@ -44,7 +48,7 @@ public class AuthorizationController(UserResolver users, ILogger<AuthorizationCo
         {
             logger.LogInformation("Authorize: code issued to client {ClientId} for user {UserId}, scopes {Scopes}",
                 request.ClientId, user.Id, request.GetScopes());
-            return SignIn(UserPrincipalFactory.CreateForTokens(user, request.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            return SignIn(CreateForTokens(user, request.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
         }
 
         logger.LogInformation("Authorize: client {ClientId}, no session → {Outcome}",
@@ -83,7 +87,7 @@ public class AuthorizationController(UserResolver users, ILogger<AuthorizationCo
 
         logger.LogInformation("Token: tokens issued to client {ClientId} for user {UserId} by {GrantType}",
             request.ClientId, user.Id, request.GrantType);
-        return SignIn(UserPrincipalFactory.CreateForTokens(user, granted.Principal!.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+        return SignIn(CreateForTokens(user, granted.Principal!.GetScopes()), OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
     /// <summary>
@@ -100,6 +104,9 @@ public class AuthorizationController(UserResolver users, ILogger<AuthorizationCo
         // Без post_logout_redirect_uri (или с незарегистрированным) OpenIddict вернёт на страницу входа.
         return SignOut(new AuthenticationProperties { RedirectUri = "/login" }, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
+
+    private ClaimsPrincipal CreateForTokens(UserDto user, IEnumerable<string> scopes) =>
+        UserPrincipalFactory.CreateForTokens(user, scopes, UserPrincipalFactory.GetRoles(user, admin.Value));
 
     /// <summary>На страницу входа с возвратом сюда же — с теми же параметрами, но без prompt (иначе prompt=login зациклится).</summary>
     private ChallengeResult RedirectToLogin()

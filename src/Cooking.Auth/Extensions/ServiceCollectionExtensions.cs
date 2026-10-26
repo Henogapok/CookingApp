@@ -20,6 +20,7 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<AuthOptions>(configuration.GetSection(AuthOptions.SectionName));
         services.Configure<TelegramOptions>(configuration.GetSection(TelegramOptions.SectionName));
+        services.Configure<AdminOptions>(configuration.GetSection(AdminOptions.SectionName));
 
         services.AddHttpClient();
         services.AddSingleton<TelegramBotInfo>();
