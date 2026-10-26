@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { productsQuery } from '@/entities/product';
 import { routes } from '@/shared/config';
 import { Skeleton } from '@/shared/ui';
@@ -17,6 +17,7 @@ interface ProductPickerProps {
 /** Выбор продукта для ингредиента рецепта: продукты семьи и «Новый продукт». */
 export function ProductPicker({ ingredientId, ingredientName, onClose, variant }: ProductPickerProps) {
   const { data, isPending } = useQuery(productsQuery());
+  const navigate = useNavigate();
   const ingredient = data?.find((item) => item.ingredientCatalogId === ingredientId);
 
   const content = (
@@ -27,7 +28,14 @@ export function ProductPicker({ ingredientId, ingredientName, onClose, variant }
       {isPending ? (
         <Skeleton height={60} radius={14} />
       ) : (
-        ingredient && ingredient.products.length > 0 && <ProductOptions ingredient={ingredient} onSelected={onClose} />
+        ingredient &&
+        ingredient.products.length > 0 && (
+          <ProductOptions
+            ingredient={ingredient}
+            onSelected={onClose}
+            onEdit={(productId) => void navigate(routes.productEdit(productId))}
+          />
+        )
       )}
       <Link to={routes.productNew(ingredientId)} className={styles.add}>
         + Новый продукт

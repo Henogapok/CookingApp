@@ -14,24 +14,35 @@ export interface ProductFormValues {
   carbs: string;
 }
 
-export type ProductFormResult = { ok: true; input: ProductInput } | { ok: false; error: string };
+/** Ошибка у конкретного поля — форма показывает её под ним и обводит поле. nutrition — у всей группы КБЖУ. */
+export type ProductFormErrors = Partial<Record<'name' | 'price' | 'amount' | 'nutrition', string>>;
 
-/** Проверка и перевод полей формы в тело запроса. Сервер проверяет то же самое — здесь, чтобы ответить сразу. */
+export type ProductFormResult = { ok: true; input: ProductInput } | { ok: false; errors: ProductFormErrors };
+
+const positive = (value: number | null) => value !== null && !Number.isNaN(value) && value > 0;
+
+/** Проверка и перевод полей формы в тело запроса. Сервер проверяет то же самое — здесь, чтобы ответить сразу и у поля. */
 export function toProductInput(ingredientCatalogId: string, values: ProductFormValues): ProductFormResult {
-  const name = values.name.trim();
-  if (name === '') return { ok: false, error: 'Укажите название продукта' };
+  const errors: ProductFormErrors = {};
 
+  const name = values.name.trim();
+  if (name === '') errors.name = 'Введите название';
+
+  // Цена и упаковка — вместе или никак: без цены продукт нужен только ради КБЖУ.
   const price = parseDecimal(values.price);
   const amount = parseDecimal(values.amount);
-  if ((price === null) !== (amount === null)) return { ok: false, error: 'Укажите и цену, и размер упаковки — или ни то, ни другое' };
-  if (Number.isNaN(price) || Number.isNaN(amount) || price === 0 || amount === 0)
-    return { ok: false, error: 'Цена и размер упаковки — положительные числа' };
+  if (price !== null || amount !== null) {
+    if (!positive(price)) errors.price = price === null ? 'Введите цену' : 'Цена — положительное число';
+    if (!positive(amount)) errors.amount = amount === null ? 'Введите размер упаковки' : 'Размер — положительное число';
+  }
 
   const macros = [values.calories, values.protein, values.fat, values.carbs].map(parseDecimal);
   if (values.ownNutrition && macros.some((value) => value === null || Number.isNaN(value)))
-    return { ok: false, error: 'Заполните КБЖУ полностью или выберите «Из каталога»' };
-  const [calories, protein, fat, carbs] = values.ownNutrition ? macros : [null, null, null, null];
+    errors.nutrition = 'Заполните все четыре значения — или выберите «Из каталога»';
 
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+  const [calories, protein, fat, carbs] = values.ownNutrition ? macros : [null, null, null, null];
   return {
     ok: true,
     input: {

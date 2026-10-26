@@ -21,11 +21,10 @@ export function ProductsPage({ userName, onSignOut }: ProductsPageProps) {
   const { data: ingredients, error, refetch } = useQuery(productsQuery());
   const { data: user } = useQuery(currentUserQuery());
   const [query, setQuery] = useState('');
-  // Пока есть ингредиенты без продукта, начинаем с них: ради них экран и открывают.
-  const [chosenFilter, setChosenFilter] = useState<ProductsFilter | null>(null);
+  // Открываем «Все»: чаще ищут свой продукт (масло, молоко), а «без продукта» — отдельным фильтром со счётчиком.
+  const [filter, setFilter] = useState<ProductsFilter>('all');
 
   const missingCount = ingredients ? withoutProducts(ingredients).length : 0;
-  const filter = chosenFilter ?? (missingCount > 0 ? 'missing' : 'all');
   const filtered = ingredients ? filterIngredients(ingredients, query, filter) : undefined;
 
   const subtitle = user?.familyName
@@ -47,7 +46,7 @@ export function ProductsPage({ userName, onSignOut }: ProductsPageProps) {
     query,
     onQuery: setQuery,
     filter,
-    onFilter: setChosenFilter,
+    onFilter: setFilter,
     missingCount,
     ingredients: filtered,
     errorBlock,

@@ -110,6 +110,20 @@
   cursor: pointer;
 }
 
+/* Ошибка ввода: красная обводка поля и текст под ним. */
+.invalid,
+.invalid:focus,
+.box.invalid:focus-within {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
+}
+
+.fieldError {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
 .hint {
   margin: 0;
   font-size: 13px;
@@ -182,7 +196,8 @@
 .error {
   margin: 0;
   font-size: 14px;
-  color: var(--accent);
+  font-weight: 600;
+  color: var(--danger);
 }
 
 .actions {

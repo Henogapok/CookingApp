@@ -42,15 +42,17 @@ describe('toProductInput', () => {
     expect(result.ok && result.input.packageUnitId).toBeNull();
   });
 
-  it('цена без упаковки → ошибка', () => {
-    expect(toProductInput('milk', values({ amount: '' })).ok).toBe(false);
+  it('цена без упаковки → ошибка у поля упаковки', () => {
+    expect(toProductInput('milk', values({ amount: '' }))).toEqual({ ok: false, errors: { amount: 'Введите размер упаковки' } });
   });
 
-  it('неполное КБЖУ → ошибка', () => {
-    expect(toProductInput('milk', values({ ownNutrition: true, calories: '58' })).ok).toBe(false);
+  it('неполное КБЖУ → ошибка у группы КБЖУ', () => {
+    const result = toProductInput('milk', values({ ownNutrition: true, calories: '58' }));
+    expect(!result.ok && result.errors.nutrition).toBeTruthy();
   });
 
-  it('пустое название → ошибка', () => {
-    expect(toProductInput('milk', values({ name: '  ' })).ok).toBe(false);
+  it('несколько ошибок → у каждого поля своя', () => {
+    const result = toProductInput('milk', values({ name: '  ', price: 'abc' }));
+    expect(!result.ok && Object.keys(result.errors).sort()).toEqual(['name', 'price']);
   });
 });

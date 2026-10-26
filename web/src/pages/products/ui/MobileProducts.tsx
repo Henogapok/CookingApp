@@ -1,8 +1,8 @@
 import { Link } from 'react-router';
-import { formatPackage, formatPricePer100, type IngredientProducts } from '@/entities/product';
+import { formatPackage, formatPricePer100, sortProducts, type IngredientProducts } from '@/entities/product';
 import { useSelectProduct } from '@/features/select-product';
 import { routes } from '@/shared/config';
-import { BackButton, Skeleton } from '@/shared/ui';
+import { Skeleton } from '@/shared/ui';
 import { formatRecipeCount } from '../lib/filterIngredients';
 import { ProductsFilters } from './ProductsFilters';
 import type { ProductsListProps } from './ProductsListProps';
@@ -13,7 +13,8 @@ export function MobileProducts({ subtitle, ingredients, errorBlock, ...filters }
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <BackButton className={styles.back}>
+        {/* Ссылка, а не «назад» по истории: из формы продукта история ведёт обратно сюда, и выйти было бы нельзя. */}
+        <Link to={routes.recipeList} className={styles.back}>
           <svg
             aria-hidden="true"
             width="22"
@@ -28,7 +29,7 @@ export function MobileProducts({ subtitle, ingredients, errorBlock, ...filters }
             <path d="M15 5l-7 7 7 7" />
           </svg>
           Рецепты
-        </BackButton>
+        </Link>
         <h1 className={styles.title}>Мои продукты</h1>
         <p className={styles.subtitle}>{subtitle}</p>
         <ProductsFilters {...filters} />
@@ -63,7 +64,7 @@ function IngredientCard({ ingredient }: IngredientCardProps) {
       {ingredient.products.length > 0 ? (
         <>
           <div className={styles.chips}>
-            {ingredient.products.map((product) => (
+            {sortProducts(ingredient.products).map((product) => (
               <button
                 key={product.id}
                 type="button"

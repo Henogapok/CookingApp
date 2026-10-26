@@ -1,4 +1,4 @@
-import { formatPackage, formatPricePer100, type IngredientProducts } from '@/entities/product';
+import { formatPackage, formatPricePer100, sortProducts, type IngredientProducts } from '@/entities/product';
 import { getErrorMessage } from '@/shared/api';
 import { useSelectProduct } from '../api/useSelectProduct';
 import styles from './ProductOptions.module.css';
@@ -20,7 +20,7 @@ export function ProductOptions({ ingredient, onSelected, onEdit }: ProductOption
   return (
     <div className={styles.options}>
       <ul className={styles.list}>
-        {ingredient.products.map((product) => {
+        {sortProducts(ingredient.products).map((product) => {
           const selected = product.id === selectedId;
           const details = [
             formatPackage(product) ?? 'цена не указана',

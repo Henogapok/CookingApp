@@ -4,6 +4,7 @@ export { milliliterUnitId, packageUnits } from './model/packageUnits';
 export type { PackageUnit } from './model/packageUnits';
 export { formatPackage, formatPricePer100, parseDecimal, pricePer100 } from './lib/price';
 export { withoutProducts } from './lib/missing';
+export { sortProducts } from './lib/sortProducts';
 export {
   createProduct,
   deleteProduct,
