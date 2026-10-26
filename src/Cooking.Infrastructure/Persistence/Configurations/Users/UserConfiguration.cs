@@ -1,3 +1,4 @@
+using Cooking.Application.Users;
 using Cooking.Domain.Entities.Users;
 using Cooking.Infrastructure.Persistence.Configurations.Common;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,9 @@ public class UserConfiguration : BaseEntityConfiguration<User>
 
         builder.Property(x => x.LastName)
             .HasMaxLength(100);
+
+        builder.Property(x => x.Theme)
+            .HasMaxLength(UserThemeRules.MaxLength);
 
         builder.HasIndex(x => x.TelegramId).IsUnique();
 

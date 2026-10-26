@@ -25,7 +25,8 @@ export const autoThemes = { light: 'sage', dark: 'midnight' } as const satisfies
 const storageKey = 'cooking.theme';
 const darkQuery = '(prefers-color-scheme: dark)';
 
-function isThemeChoice(value: string | null): value is ThemeChoice {
+/** Знакомое ли это значение: с сервера может прийти тема, которой в этой версии PWA уже (или ещё) нет. */
+export function isThemeChoice(value: string | null): value is ThemeChoice {
   return value === 'auto' || themes.some((theme) => theme.id === value);
 }
 
@@ -64,7 +65,18 @@ export function initTheme() {
   });
 }
 
+export function getThemeChoice(): ThemeChoice {
+  return choice;
+}
+
+/** Подписка на смену выбора; возвращает отписку. */
+export function subscribeThemeChoice(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function setThemeChoice(value: ThemeChoice) {
+  if (value === choice) return;
   choice = value;
   try {
     localStorage.setItem(storageKey, value);
@@ -77,11 +89,5 @@ export function setThemeChoice(value: ThemeChoice) {
 
 /** Текущий выбор темы; компонент перерисуется, когда его поменяют. */
 export function useThemeChoice(): ThemeChoice {
-  return useSyncExternalStore(
-    (onChange) => {
-      listeners.add(onChange);
-      return () => listeners.delete(onChange);
-    },
-    () => choice,
-  );
+  return useSyncExternalStore(subscribeThemeChoice, getThemeChoice);
 }

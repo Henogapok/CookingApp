@@ -12,7 +12,7 @@ public class UserPrincipalFactoryTests
 
     private static readonly AdminOptions Admin = new() { TelegramIds = [AdminTelegramId] };
 
-    private static UserDto User(long telegramId) => new(Guid.NewGuid(), telegramId, "Иван", null, null, null);
+    private static UserDto User(long telegramId) => new(Guid.NewGuid(), telegramId, "Иван", null, null, null, null);
 
     [Fact]
     public void GetRoles_TelegramIdInAdminList_ReturnsAdmin()

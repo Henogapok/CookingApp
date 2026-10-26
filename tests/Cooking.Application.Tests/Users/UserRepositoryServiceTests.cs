@@ -54,4 +54,29 @@ public class UserRepositoryServiceTests
         var error = Assert.IsType<AppError>(Assert.Single(result.Errors));
         Assert.Equal(ErrorCode.NotFound, error.Code);
     }
+
+    [Fact]
+    public async Task SetThemeAsync_ExistingUser_SavesTheme()
+    {
+        await using var context = CreateContext();
+        var repository = new UserRepositoryService(context);
+        var user = await repository.RegisterAsync(42, "Иван", null, CancellationToken.None);
+        Assert.Null(user.Value.Theme);
+
+        var result = await repository.SetThemeAsync(user.Value.Id, "midnight", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("midnight", (await repository.GetByIdAsync(user.Value.Id, CancellationToken.None)).Value.Theme);
+    }
+
+    [Fact]
+    public async Task SetThemeAsync_UnknownUser_ReturnsNotFound()
+    {
+        await using var context = CreateContext();
+        var repository = new UserRepositoryService(context);
+
+        var result = await repository.SetThemeAsync(Guid.NewGuid(), "sage", CancellationToken.None);
+
+        Assert.Equal(ErrorCode.NotFound, Assert.IsType<AppError>(Assert.Single(result.Errors)).Code);
+    }
 }

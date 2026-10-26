@@ -890,6 +890,10 @@ namespace Cooking.Infrastructure.Migrations
                     b.Property<long>("TelegramId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Theme")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
