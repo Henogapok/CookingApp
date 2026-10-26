@@ -501,6 +501,7 @@ Seed — через `HasData` в EF-конфигурациях, значения
 - Логика — `Application/Products/` (`IProductRepositoryService`), Api — `ProductsController`: `GET api/products` (ингредиенты из рецептов семьи и с продуктами семьи: число рецептов, КБЖУ каталога, продукты, какой выбран, цена за 100), `POST`, `PUT {id}` (ингредиент продукта не меняется), `DELETE {id}`, `POST {id}/select`. Чужой продукт — NotFound.
 - Упаковка «шт» допустима, только если у ингредиента известен вес штуки (иначе цену за 100 г не посчитать — Validation).
 - В `RecipeIngredientDto` — `ProductId`/`ProductName` выбранного продукта; превью черновика в боте считается по продуктам его автора.
+- PWA: `entities/product` (типы, запросы, единицы упаковки, `pricePer100` — та же формула, что на сервере), `features/select-product` (`ProductPicker`: в рецепте у каждого ингредиента кнопка продукта → панель снизу на телефоне / окошко под ингредиентом на компьютере; `ProductOptions` — радиокнопки, и на «Моих продуктах»), `features/edit-product` (`ProductForm`: цена и упаковка как на ценнике с единицей в поле, КБЖУ «из каталога / с упаковки»), `pages/products` (`/products`: телефон — карточки с продуктами-чипами, компьютер — таблица + панель ингредиента с формой), `pages/product-form` (`/products/new?ingredient=…`, `/products/:id/edit`). Вход — «Мои продукты» в меню профиля (с числом ингредиентов без продукта). После любого изменения продуктов сбрасываются и рецепты (`recipeKeys.all`): их цена и КБЖУ зависят от продуктов. «Без продукта» в выборе нет: выбранный — последний выбранный, снять выбор нельзя (можно удалить продукт).
 
 ## Рецепты из Instagram Reels
 
@@ -547,11 +548,11 @@ React 19 + TypeScript + Vite, папка `web/` в корне (не в `src/` �
 web/src/
 ├── main.tsx      точка входа
 ├── app/          запуск: App (не вошёл → pages/sign-in), auth/ (вход через Cooking.Auth), query/ (кэш TanStack Query), router/ (React Router), styles/global.css
-├── pages/        экраны под маршруты; собирают блоки нижних слоёв (recipe-list, recipe, sign-in)
+├── pages/        экраны под маршруты; собирают блоки нижних слоёв (recipe-list, recipe, products, product-form, sign-in)
 ├── widgets/      крупные блоки для нескольких экранов: app-header (шапка компьютерной версии, меню профиля с выбором темы)
-├── features/     (когда понадобится) действия пользователя: свайп, в корзину, пересчёт порций, вход
-├── entities/     бизнес-сущности: тип, запросы к Api, отображение (сейчас recipe)
-└── shared/       без бизнес-логики: api/ (http-клиент), config/ (адреса экранов), lib/ (тема, хуки: useMediaQuery, useCollapseOnScroll, useWakeLock), ui/ (Skeleton)
+├── features/     действия пользователя: select-product (выбор продукта), edit-product (форма продукта); позже — свайп, в корзину
+├── entities/     бизнес-сущности: тип, запросы к Api, отображение (recipe, product, user)
+└── shared/       без бизнес-логики: api/ (http-клиент), config/ (адреса экранов), lib/ (тема, хуки: useMediaQuery, useCollapseOnScroll, useWakeLock), ui/ (Skeleton, BackButton)
 ```
 
 - Слайс (`entities/recipe`, `pages/recipe-list`) делится на сегменты `ui/`, `model/` (типы, состояние), `api/`, `lib/` (чистые функции + тесты рядом).
