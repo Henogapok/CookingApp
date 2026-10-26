@@ -54,20 +54,6 @@ public static class NutritionCalculator
             : null;
     }
 
-    /// <summary>Почему упаковку продукта нельзя перевести в базовую единицу ингредиента; null — можно (или упаковки нет).</summary>
-    public static string? PackageProblem(ProductValues product, IngredientNutritionSource ingredient)
-    {
-        if (product.PackageAmount is null)
-            return null;
-
-        if (ingredient.BaseUnitId != ReferenceIds.MeasurementUnits.Gram && ingredient.BaseUnitId != ReferenceIds.MeasurementUnits.Milliliter)
-            return "Prices are supported only for ingredients measured in grams or milliliters.";
-
-        return ToBaseAmount(product.PackageAmount, product.PackageUnitId, ingredient) is null
-            ? "A package in pieces needs the ingredient's piece weight in the catalog."
-            : null;
-    }
-
     /// <summary>Источник для расчёта с выбранным продуктом: его КБЖУ (если указано) и цена; без продукта — каталог без цены.</summary>
     public static IngredientNutritionSource WithProduct(IngredientNutritionSource catalog, ProductValues? product) =>
         product is null
@@ -114,7 +100,8 @@ public static class NutritionCalculator
             servings is > 0 ? total.Scale(1m / servings.Value) : null,
             counted,
             cost,
-            withoutPrice,
+            // Один ингредиент бывает в рецепте несколькими строками (сахар в тесто и в крем) — называем его один раз.
+            withoutPrice.Distinct().ToList(),
             notCounted);
     }
 }

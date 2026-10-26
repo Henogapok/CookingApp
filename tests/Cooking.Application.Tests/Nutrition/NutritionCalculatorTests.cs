@@ -135,4 +135,13 @@ public class NutritionCalculatorTests
         Assert.Equal(0, result.Cost);
         Assert.Equal(["Морковь"], result.IngredientsWithoutPrice);
     }
+
+    [Fact]
+    public void ForRecipe_SameIngredientTwiceWithoutPrice_NamedOnce()
+    {
+        var result = NutritionCalculator.ForRecipe(
+            [new IngredientAmount("Сахар", 100, Gram, Source()), new IngredientAmount("Сахар", 50, Gram, Source())], servings: 2);
+
+        Assert.Equal(["Сахар"], result.IngredientsWithoutPrice);
+    }
 }

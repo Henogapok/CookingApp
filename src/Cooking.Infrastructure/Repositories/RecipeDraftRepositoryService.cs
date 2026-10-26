@@ -268,7 +268,7 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
 
         // Цена и КБЖУ — по продуктам автора черновика (и его семьи), как он увидит и сохранённый рецепт.
         var owner = await dataContext.Users.FindAsync([userId], cancellationToken);
-        var products = owner is null ? [] : await SelectedProducts.LoadAsync(dataContext, owner, cancellationToken);
+        var products = owner is null ? [] : await SelectedProducts.LoadAsync(dataContext, owner, catalogIds, cancellationToken);
 
         IngredientNutritionSource? SourceOf(RecipeDraftIngredient i)
         {

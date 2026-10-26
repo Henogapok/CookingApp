@@ -269,6 +269,23 @@ public class ProductRepositoryServiceTests
     }
 
     [Fact]
+    public async Task CatalogUpdate_MillilitersToGramsBreakingProductMacros_ReturnsLogicConflict()
+    {
+        await using var context = CreateContext();
+        var s = await SeedAsync(context);
+        var condensed = Fields(s.MilkId, "Сгущёнка") with { CaloriesPer100G = 420, ProteinPer100G = 9, FatPer100G = 11, CarbsPer100G = 85 };
+        await new ProductRepositoryService(context).CreateAsync(s.IvanId, condensed, CancellationToken.None);
+        var milk = await context.IngredientCatalog.SingleAsync(i => i.Id == s.MilkId);
+        var fields = new IngredientCatalogFields(
+            milk.Name, milk.CategoryId, Gram, milk.CaloriesPer100g, milk.ProteinPer100g, milk.FatPer100g, milk.CarbsPer100g,
+            milk.CreatedBySourceId, milk.NutritionSourceId);
+
+        var result = await new IngredientCatalogRepositoryService(context).UpdateAsync(s.MilkId, fields, CancellationToken.None);
+
+        AssertError(result, ErrorCode.LogicConflict);
+    }
+
+    [Fact]
     public async Task LeavingFamily_ProductsStayWithAuthor()
     {
         await using var context = CreateContext();

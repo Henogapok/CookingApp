@@ -145,7 +145,8 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         if (row is null)
             return RecipeNotFound(id);
 
-        var products = await SelectedProducts.LoadAsync(dataContext, user, cancellationToken);
+        var ingredientIds = row.Ingredients.Select(i => i.IngredientCatalogId).ToList();
+        var products = await SelectedProducts.LoadAsync(dataContext, user, ingredientIds, cancellationToken);
         return Result.Ok(ToDto(row, products));
     }
 
@@ -166,11 +167,8 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         decimal Fat,
         decimal Carbs)
     {
-        public IngredientAmount ToAmount(SelectedProduct? product) => new(
-            Name, Amount, UnitId,
-            NutritionCalculator.WithProduct(
-                new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), PricePer100: null),
-                product?.Values));
+        public IngredientAmount ToAmount(SelectedProduct? product) =>
+            ToIngredientAmount(Name, Amount, UnitId, BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), product);
     }
 
     private sealed record RecipeRow(
@@ -266,7 +264,7 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
                     .ToList()))
             .ToListAsync(cancellationToken);
 
-        var products = await SelectedProducts.LoadAsync(dataContext, user, cancellationToken);
+        var products = await SelectedProducts.LoadAsync(dataContext, user, ingredientIds: null, cancellationToken);
 
         var recipes = rows
             .Select(r => new RecipeSummaryDto(
@@ -293,12 +291,15 @@ public class RecipeRepositoryService(IDataContext dataContext) : IRecipeReposito
         decimal Fat,
         decimal Carbs)
     {
-        public IngredientAmount ToAmount(SelectedProduct? product) => new(
-            Name, Amount, UnitId,
-            NutritionCalculator.WithProduct(
-                new IngredientNutritionSource(BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), PricePer100: null),
-                product?.Values));
+        public IngredientAmount ToAmount(SelectedProduct? product) =>
+            ToIngredientAmount(Name, Amount, UnitId, BaseUnitId, PieceWeight, new NutritionFacts(Calories, Protein, Fat, Carbs), product);
     }
+
+    /// <summary>Строка рецепта для расчёта: КБЖУ каталога, а с выбранным продуктом — его цена и КБЖУ с упаковки.</summary>
+    private static IngredientAmount ToIngredientAmount(
+        string name, decimal? amount, Guid? unitId, Guid baseUnitId, decimal? pieceWeight, NutritionFacts catalogPer100, SelectedProduct? product) =>
+        new(name, amount, unitId, NutritionCalculator.WithProduct(
+            new IngredientNutritionSource(baseUnitId, pieceWeight, catalogPer100, PricePer100: null), product?.Values));
 
     private sealed record RecipeSummaryRow(
         Guid Id,

@@ -3,6 +3,7 @@ using Cooking.Application.Common.Errors;
 using Cooking.Application.Common.Interfaces;
 using Cooking.Application.Ingredients;
 using Cooking.Application.Nutrition;
+using Cooking.Application.Products;
 using Cooking.Domain.Entities.Ingredients;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
@@ -57,16 +58,20 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         if (fkCheck.IsFailed)
             return fkCheck;
 
-        // Смена базовой единицы или веса штуки молча лишила бы цены продукты семей с упаковкой «шт» или любой упаковкой
-        // у ингредиента не в г/мл — такую правку не пускаем, пока эти продукты есть.
+        // Смена базовой единицы или веса штуки не должна сделать продукты семей неверными: упаковка «шт» без веса штуки
+        // теряет цену, а КБЖУ «на 100 мл» после перехода на граммы может дать Б+Ж+У больше 100 г.
         var source = new IngredientNutritionSource(fields.BaseUnitId, fields.PieceWeight, NutritionFacts.Zero, PricePer100: null);
-        var packages = await dataContext.Products
-            .Where(p => p.IngredientCatalogId == id && p.PackageAmount != null)
-            .Select(p => new ProductValues(p.PackagePrice, p.PackageAmount, p.PackageUnitId, null))
+        var products = await dataContext.Products
+            .Where(p => p.IngredientCatalogId == id)
+            .Select(p => new { p.PackagePrice, p.PackageAmount, p.PackageUnitId, p.CaloriesPer100g, p.ProteinPer100g, p.FatPer100g, p.CarbsPer100g })
             .ToListAsync(cancellationToken);
-        if (packages.Any(p => NutritionCalculator.PackageProblem(p, source) is not null))
+        var broken = products.Any(p => ProductRules.Problem(
+            new ProductValues(p.PackagePrice, p.PackageAmount, p.PackageUnitId,
+                NutritionFacts.AllOrNone(p.CaloriesPer100g, p.ProteinPer100g, p.FatPer100g, p.CarbsPer100g)),
+            source) is not null);
+        if (broken)
             return Result.Fail(new AppError(
-                "Products of this ingredient have packages that would no longer convert to its base unit.", ErrorCode.LogicConflict));
+                "Products of this ingredient would no longer fit its base unit or piece weight.", ErrorCode.LogicConflict));
 
         entity.Name = fields.Name;
         entity.CategoryId = fields.CategoryId;

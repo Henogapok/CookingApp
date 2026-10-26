@@ -40,7 +40,7 @@ export function NutritionSummary({ nutrition, factor, servings }: NutritionSumma
           Стоимость: <strong className={styles.strong}>{formatCost(cost)}</strong>
           {servings !== null && servings > 0 && ` · ${formatCost(cost / servings)} за порцию`}
           {nutrition.ingredientsWithoutPrice.length > 0 &&
-            ` · без цены: ${nutrition.ingredientsWithoutPrice.join(', ').toLowerCase()}`}
+            ` · без цены: ${nutrition.ingredientsWithoutPrice.join(', ')}`}
         </p>
       ) : (
         <p className={styles.note}>Стоимость не посчитать: у ингредиентов нет продуктов с ценой</p>

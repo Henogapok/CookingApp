@@ -63,10 +63,9 @@ public class ProductRepositoryService(IDataContext dataContext) : IProductReposi
             })
             .ToListAsync(cancellationToken);
 
-        // Порядок — как у выбора в SelectedProducts: первый в списке и есть выбранный.
+        // Первый продукт ингредиента в этом порядке и есть выбранный — то же правило, что в расчёте рецептов.
         var productsByIngredient = products
-            .OrderByDescending(p => p.SelectedAt)
-            .ThenBy(p => p.Id)
+            .InSelectionOrder(p => p.SelectedAt, p => p.Id)
             .ToLookup(p => p.IngredientCatalogId);
 
         var result = ingredients
@@ -178,10 +177,7 @@ public class ProductRepositoryService(IDataContext dataContext) : IProductReposi
             : Result.Ok(product);
     }
 
-    /// <summary>
-    /// Ингредиент существует, упаковку можно перевести в его базовую единицу («шт» — только при известном весе штуки,
-    /// иначе цену за 100 г не посчитать), а Б+Ж+У на 100 г не больше 100 г (на 100 мл может быть больше: мёд, сиропы).
-    /// </summary>
+    /// <summary>Ингредиент существует, и продукт подходит к нему по правилам <see cref="ProductRules"/>.</summary>
     private async Task<Result<Guid>> CheckIngredientAsync(ProductFields fields, CancellationToken cancellationToken)
     {
         var ingredient = await dataContext.IngredientCatalog
@@ -194,13 +190,11 @@ public class ProductRepositoryService(IDataContext dataContext) : IProductReposi
                 $"IngredientCatalog with id '{fields.IngredientCatalogId}' was not found.", ErrorCode.Validation));
 
         var source = new IngredientNutritionSource(ingredient.BaseUnitId, ingredient.PieceWeight, NutritionFacts.Zero, PricePer100: null);
-        var package = new ProductValues(fields.PackagePrice, fields.PackageAmount, fields.PackageUnitId, Per100: null);
-        if (NutritionCalculator.PackageProblem(package, source) is { } problem)
+        var product = new ProductValues(
+            fields.PackagePrice, fields.PackageAmount, fields.PackageUnitId,
+            NutritionFacts.AllOrNone(fields.CaloriesPer100G, fields.ProteinPer100G, fields.FatPer100G, fields.CarbsPer100G));
+        if (ProductRules.Problem(product, source) is { } problem)
             return Result.Fail(new AppError(problem, ErrorCode.Validation));
-
-        if (ingredient.BaseUnitId == ReferenceIds.MeasurementUnits.Gram
-            && (fields.ProteinPer100G ?? 0) + (fields.FatPer100G ?? 0) + (fields.CarbsPer100G ?? 0) > 100)
-            return Result.Fail(new AppError("Protein, fat and carbs per 100 g cannot exceed 100 g together.", ErrorCode.Validation));
 
         return Result.Ok(fields.IngredientCatalogId);
     }
