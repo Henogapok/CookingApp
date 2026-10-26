@@ -13,6 +13,8 @@ const ingredient = (overrides: Partial<RecipeIngredient>): RecipeIngredient => (
   baseAmount: 120,
   baseUnitAbbreviation: 'г',
   nutrition: null,
+  productId: null,
+  productName: null,
   ...overrides,
 });
 
@@ -41,5 +43,17 @@ describe('formatQuantity', () => {
 
   it('штуки без веса (не пересчитать) → только количество', () => {
     expect(formatQuantity(ingredient({ baseAmount: null }), 1)).toEqual({ main: '2 шт', base: null });
+  });
+
+  it('килограммы при базовых граммах → без подсказки «≈»: пересчёт точный', () => {
+    expect(
+      formatQuantity(ingredient({ amount: 1.5, unitAbbreviation: 'кг', baseAmount: 1500, baseUnitAbbreviation: 'г' }), 1),
+    ).toEqual({ main: '1,5 кг', base: null });
+  });
+
+  it('литры при базовых граммах → подсказка остаётся: мл в г — приближение', () => {
+    expect(
+      formatQuantity(ingredient({ amount: 0.5, unitAbbreviation: 'л', baseAmount: 500, baseUnitAbbreviation: 'г' }), 1),
+    ).toEqual({ main: '0,5 л', base: '≈ 500 г' });
   });
 });

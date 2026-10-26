@@ -11,7 +11,6 @@ public class CreateIngredientCatalogCommandValidator : AbstractValidator<CreateI
         RuleFor(x => x.BaseUnitId).NotEmpty();
         RuleFor(x => x.CreatedBySourceId).NotEmpty();
         RuleFor(x => x.NutritionSourceId).NotEmpty();
-        RuleFor(x => x.PricePer100G).GreaterThanOrEqualTo(0);
         RuleFor(x => x.CaloriesPer100G).GreaterThanOrEqualTo(0);
         RuleFor(x => x.ProteinPer100G).GreaterThanOrEqualTo(0);
         RuleFor(x => x.FatPer100G).GreaterThanOrEqualTo(0);

@@ -266,17 +266,24 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
             .Where(u => unitIds.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => u.Abbreviation, cancellationToken);
 
+        // Цена и КБЖУ — по продуктам автора черновика (и его семьи), как он увидит и сохранённый рецепт.
+        var owner = await dataContext.Users.FindAsync([userId], cancellationToken);
+        var products = owner is null ? [] : await SelectedProducts.LoadAsync(dataContext, owner, catalogIds, cancellationToken);
+
         IngredientNutritionSource? SourceOf(RecipeDraftIngredient i)
         {
+            // У нового ингредиента продуктов ещё быть не может — цены нет.
             if (i.NewIngredient is { } n)
                 return new IngredientNutritionSource(
                     n.BaseUnitId, i.PieceWeight,
-                    new NutritionFacts(n.CaloriesPer100G, n.ProteinPer100G, n.FatPer100G, n.CarbsPer100G), 0);
+                    new NutritionFacts(n.CaloriesPer100G, n.ProteinPer100G, n.FatPer100G, n.CarbsPer100G), PricePer100: null);
 
             if (i.IngredientCatalogId is { } catalogId && catalog.TryGetValue(catalogId, out var x))
-                return new IngredientNutritionSource(
-                    x.BaseUnitId, x.PieceWeight ?? i.PieceWeight, // вес штуки из черновика допишется в каталог при сохранении
-                    new NutritionFacts(x.CaloriesPer100g, x.ProteinPer100g, x.FatPer100g, x.CarbsPer100g), x.PricePer100g);
+                return NutritionCalculator.WithProduct(
+                    new IngredientNutritionSource(
+                        x.BaseUnitId, x.PieceWeight ?? i.PieceWeight, // вес штуки из черновика допишется в каталог при сохранении
+                        new NutritionFacts(x.CaloriesPer100g, x.ProteinPer100g, x.FatPer100g, x.CarbsPer100g), PricePer100: null),
+                    products.GetValueOrDefault(catalogId)?.Values);
 
             return null; // ингредиент успели удалить из каталога
         }
@@ -317,7 +324,9 @@ public class RecipeDraftRepositoryService(IDataContext dataContext) : IRecipeDra
                         i.UnitId is { } unitId ? unitAbbreviations.GetValueOrDefault(unitId) : null,
                         IsNew: i.NewIngredient is not null,
                         IsNutritionEstimatedByLlm: i.NewIngredient is not null
-                            || (i.IngredientCatalogId is { } id && catalog.TryGetValue(id, out var x) && x.NutritionSourceId == ReferenceIds.DataSources.Llm),
+                            || (i.IngredientCatalogId is { } id && catalog.TryGetValue(id, out var x)
+                                && NutritionCalculator.IsEstimatedByLlm(
+                                    x.NutritionSourceId == ReferenceIds.DataSources.Llm, products.GetValueOrDefault(id)?.Values)),
                         nutrition?.BaseAmount,
                         amounts[index] is { } a ? unitAbbreviations.GetValueOrDefault(a.Source.BaseUnitId) : null,
                         nutrition?.Nutrition);

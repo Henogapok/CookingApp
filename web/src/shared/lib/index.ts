@@ -16,3 +16,4 @@ export type { ThemeChoice, ThemeId, ThemeInfo } from './theme';
 export { useMediaQuery } from './useMediaQuery';
 export { useCollapseOnScroll } from './useCollapseOnScroll';
 export { useWakeLock } from './useWakeLock';
+export { useGoBack } from './useGoBack';

@@ -5,8 +5,8 @@ import { recipeListQuery, recipeQuery, RecipeThumb, type RecipeDetails } from '@
 import { ApiError, getErrorMessage } from '@/shared/api';
 import { routes } from '@/shared/config';
 import { useMediaQuery, useWakeLock } from '@/shared/lib';
+import { BackButton } from '@/shared/ui';
 import { DesktopHeader } from '@/widgets/app-header';
-import { BackButton } from './BackButton';
 import { IngredientList } from './IngredientList';
 import { MobileRecipeBar } from './MobileRecipeBar';
 import { NutritionSummary } from './NutritionSummary';
@@ -38,7 +38,7 @@ export function RecipePage({ userName, onSignOut }: RecipePageProps) {
   let content;
   if (recipe && !notFound) {
     // key: при переходе на другой рецепт выбранные порции сбрасываются к его собственным.
-    content = <RecipeView key={recipe.id} recipe={recipe} />;
+    content = <RecipeView key={recipe.id} recipe={recipe} isDesktop={isDesktop} />;
   } else if (isPending) {
     content = <RecipeSkeleton summary={summary} />;
   } else {
@@ -76,9 +76,10 @@ export function RecipePage({ userName, onSignOut }: RecipePageProps) {
 
 interface RecipeViewProps {
   recipe: RecipeDetails;
+  isDesktop: boolean;
 }
 
-function RecipeView({ recipe }: RecipeViewProps) {
+function RecipeView({ recipe, isDesktop }: RecipeViewProps) {
   // Пока открыт рецепт, экран не гаснет — по нему готовят.
   useWakeLock();
 
@@ -102,7 +103,7 @@ function RecipeView({ recipe }: RecipeViewProps) {
               <ServingsControl servings={servings} onChange={setChosenServings} />
             )}
             <NutritionSummary nutrition={recipe.nutrition} factor={factor} servings={servings} />
-            <IngredientList ingredients={recipe.ingredients} factor={factor} />
+            <IngredientList ingredients={recipe.ingredients} factor={factor} isDesktop={isDesktop} />
           </div>
           <StepList steps={recipe.steps} />
         </div>

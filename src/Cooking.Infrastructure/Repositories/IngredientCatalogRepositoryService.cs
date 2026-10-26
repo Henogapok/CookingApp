@@ -2,6 +2,8 @@ using System.Linq.Expressions;
 using Cooking.Application.Common.Errors;
 using Cooking.Application.Common.Interfaces;
 using Cooking.Application.Ingredients;
+using Cooking.Application.Nutrition;
+using Cooking.Application.Products;
 using Cooking.Domain.Entities.Ingredients;
 using FluentResults;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +16,7 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         e.Id, e.Name,
         e.CategoryId, e.Category.Name,
         e.BaseUnitId, e.BaseUnit.Name, e.BaseUnit.Abbreviation,
-        e.PricePer100g, e.CaloriesPer100g, e.ProteinPer100g, e.FatPer100g, e.CarbsPer100g,
+        e.CaloriesPer100g, e.ProteinPer100g, e.FatPer100g, e.CarbsPer100g,
         e.CreatedBySourceId, e.CreatedBySource.Name,
         e.NutritionSourceId, e.NutritionSource.Name,
         e.PieceWeight);
@@ -30,7 +32,6 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
             Name = fields.Name,
             CategoryId = fields.CategoryId,
             BaseUnitId = fields.BaseUnitId,
-            PricePer100g = fields.PricePer100G,
             CaloriesPer100g = fields.CaloriesPer100G,
             ProteinPer100g = fields.ProteinPer100G,
             FatPer100g = fields.FatPer100G,
@@ -57,10 +58,21 @@ public class IngredientCatalogRepositoryService(IDataContext dataContext) : IIng
         if (fkCheck.IsFailed)
             return fkCheck;
 
+        // Смена базовой единицы или веса штуки не должна сделать продукты семей неверными: упаковка «шт» без веса штуки
+        // теряет цену, а КБЖУ «на 100 мл» после перехода на граммы может дать Б+Ж+У больше 100 г.
+        var source = new IngredientNutritionSource(fields.BaseUnitId, fields.PieceWeight, NutritionFacts.Zero, PricePer100: null);
+        var products = await dataContext.Products
+            .Where(p => p.IngredientCatalogId == id)
+            .Select(ProductRow.Projection)
+            .ToListAsync(cancellationToken);
+        var broken = products.Any(p => ProductRules.Problem(p.Values, source) is not null);
+        if (broken)
+            return Result.Fail(new AppError(
+                "Products of this ingredient would no longer fit its base unit or piece weight.", ErrorCode.LogicConflict));
+
         entity.Name = fields.Name;
         entity.CategoryId = fields.CategoryId;
         entity.BaseUnitId = fields.BaseUnitId;
-        entity.PricePer100g = fields.PricePer100G;
         entity.CaloriesPer100g = fields.CaloriesPer100G;
         entity.ProteinPer100g = fields.ProteinPer100G;
         entity.FatPer100g = fields.FatPer100G;

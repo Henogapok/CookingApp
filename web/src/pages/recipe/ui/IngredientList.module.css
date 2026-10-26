@@ -21,10 +21,41 @@
 
 .row {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+}
+
+.main {
+  display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+}
+
+/* Продукт, по которому посчитан ингредиент: «Алтын ▾»; нет продукта — пунктир акцентным цветом. */
+.product {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.noProduct {
+  border-style: dashed;
+  border-color: var(--accent);
+  background: transparent;
+  color: var(--accent);
 }
 
 .row + .row {

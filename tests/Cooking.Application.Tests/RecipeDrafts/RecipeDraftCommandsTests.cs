@@ -326,7 +326,6 @@ public class RecipeDraftCommandsTests
         var salt = await context.IngredientCatalog.SingleAsync(i => i.Name == "Соль");
         Assert.Equal(ReferenceIds.DataSources.Llm, salt.CreatedBySourceId);
         Assert.Equal(ReferenceIds.DataSources.Llm, salt.NutritionSourceId);
-        Assert.Equal(0, salt.PricePer100g);
 
         var recipe = (await new RecipeRepositoryService(context).GetByIdAsync(result.Value, userId, CancellationToken.None)).Value;
         Assert.Equal("Жареная курица", recipe.Title);

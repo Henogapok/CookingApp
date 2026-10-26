@@ -8,7 +8,6 @@ public record IngredientCatalogDto(
     Guid BaseUnitId,
     string BaseUnitName,
     string BaseUnitAbbreviation,
-    decimal PricePer100G,
     decimal CaloriesPer100G,
     decimal ProteinPer100G,
     decimal FatPer100G,

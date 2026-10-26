@@ -10,7 +10,7 @@ public class NutritionCalculatorTests
     private static readonly Guid Piece = ReferenceIds.MeasurementUnits.Piece;
 
     private static IngredientNutritionSource Source(
-        Guid? baseUnit = null, decimal? pieceWeight = null, decimal calories = 100, decimal price = 0) =>
+        Guid? baseUnit = null, decimal? pieceWeight = null, decimal calories = 100, decimal? price = null) =>
         new(baseUnit ?? Gram, pieceWeight, new NutritionFacts(calories, 10, 5, 20), price);
 
     [Theory]
@@ -20,6 +20,8 @@ public class NutritionCalculatorTests
     [InlineData("00000003-0000-0000-0000-000000000005", 2, 10)]     // ч.л. = 5
     [InlineData("00000003-0000-0000-0000-000000000006", 1, 250)]    // стакан = 250
     [InlineData("00000003-0000-0000-0000-000000000007", 2, 1)]      // щепотка = 0.5
+    [InlineData("00000003-0000-0000-0000-000000000008", 1.5, 1500)] // кг
+    [InlineData("00000003-0000-0000-0000-000000000009", 1, 1000)]   // л
     public void ToBaseAmount_ConvertsUnits(string unitId, double amount, double expected)
     {
         Assert.Equal((decimal)expected, NutritionCalculator.ToBaseAmount((decimal)amount, Guid.Parse(unitId), Source()));
@@ -68,7 +70,7 @@ public class NutritionCalculatorTests
         Assert.Equal(2, result.CountedIngredients);
         Assert.Equal(["Свёкла"], result.NotCounted);
         Assert.Equal(2000, result.Cost);                 // 500 г × 400 ₸ / 100
-        Assert.Equal(1, result.IngredientsWithoutPrice);  // картофель без цены
+        Assert.Equal(["Картофель"], result.IngredientsWithoutPrice);
     }
 
     [Fact]
@@ -78,5 +80,68 @@ public class NutritionCalculatorTests
 
         Assert.Null(result.PerServing);
         Assert.Equal(100, result.Total.Calories);
+    }
+
+    [Fact]
+    public void PricePer100_FromPackage()
+    {
+        // 520 ₸ · 1 л → 52 ₸ за 100 мл
+        Assert.Equal(52, NutritionCalculator.PricePer100(
+            new ProductValues(520, 1, ReferenceIds.MeasurementUnits.Liter, null), Source(baseUnit: Ml)));
+        // 1 290 ₸ · 900 г → 143,33 ₸ за 100 г
+        Assert.Equal(143.33m, Math.Round(NutritionCalculator.PricePer100(
+            new ProductValues(1290, 900, Gram, null), Source())!.Value, 2));
+        // 950 ₸ · 10 шт по 55 г → 172,73 ₸ за 100 г
+        Assert.Equal(172.73m, Math.Round(NutritionCalculator.PricePer100(
+            new ProductValues(950, 10, Piece, null), Source(pieceWeight: 55))!.Value, 2));
+    }
+
+    [Fact]
+    public void PricePer100_NoPriceOrPiecesWithoutWeight_IsNull()
+    {
+        Assert.Null(NutritionCalculator.PricePer100(new ProductValues(null, null, null, null), Source()));
+        Assert.Null(NutritionCalculator.PricePer100(new ProductValues(950, 10, Piece, null), Source(pieceWeight: null)));
+    }
+
+    [Fact]
+    public void WithProduct_UsesProductPriceAndOwnNutrition()
+    {
+        var own = new NutritionFacts(58, 2.9m, 3.2m, 4.7m);
+
+        var source = NutritionCalculator.WithProduct(
+            Source(baseUnit: Ml), new ProductValues(520, 1, ReferenceIds.MeasurementUnits.Liter, own));
+
+        Assert.Equal(own, source.Per100);
+        Assert.Equal(52, source.PricePer100);
+    }
+
+    [Fact]
+    public void WithProduct_WithoutOwnNutrition_KeepsCatalogNutrition()
+    {
+        var catalog = Source(calories: 345);
+
+        var source = NutritionCalculator.WithProduct(catalog, new ProductValues(1500, 1, ReferenceIds.MeasurementUnits.Kilogram, null));
+
+        Assert.Equal(catalog.Per100, source.Per100);
+        Assert.Equal(150, source.PricePer100);
+    }
+
+    [Fact]
+    public void WithProduct_NoProduct_NoPrice()
+    {
+        var result = NutritionCalculator.ForRecipe(
+            [new IngredientAmount("Морковь", 500, Gram, NutritionCalculator.WithProduct(Source(), null))], servings: 2);
+
+        Assert.Equal(0, result.Cost);
+        Assert.Equal(["Морковь"], result.IngredientsWithoutPrice);
+    }
+
+    [Fact]
+    public void ForRecipe_SameIngredientTwiceWithoutPrice_NamedOnce()
+    {
+        var result = NutritionCalculator.ForRecipe(
+            [new IngredientAmount("Сахар", 100, Gram, Source()), new IngredientAmount("Сахар", 50, Gram, Source())], servings: 2);
+
+        Assert.Equal(["Сахар"], result.IngredientsWithoutPrice);
     }
 }

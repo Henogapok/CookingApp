@@ -24,6 +24,8 @@ public static class RecipeParsingCodes
         ["tsp"] = ReferenceIds.MeasurementUnits.Teaspoon,
         ["cup"] = ReferenceIds.MeasurementUnits.Glass,
         ["pinch"] = ReferenceIds.MeasurementUnits.Pinch,
+        ["kg"] = ReferenceIds.MeasurementUnits.Kilogram,
+        ["l"] = ReferenceIds.MeasurementUnits.Liter,
     };
 
     /// <summary>КБЖУ в каталоге — на 100 г или 100 мл, поэтому базовая единица только из этих двух.</summary>

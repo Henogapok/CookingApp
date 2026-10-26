@@ -1,0 +1,243 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* У fieldset по умолчанию min-width: min-content — без 0 группа не сжимается под узкую панель и поля вылезают. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  outline: none;
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.input:focus,
+.box:focus-within {
+  border-color: var(--accent);
+}
+
+/* Поле с единицей внутри: «520 ₸», «900 г ▾». */
+.box {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding: 0 6px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+/* width: 0 — у поля ввода своя ширина «на 20 символов», из-за неё рамка не сжимается; ширину даёт flex. */
+.inner {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.suffix {
+  flex: none;
+  padding: 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.unit {
+  flex: none;
+  height: 36px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Ошибка ввода: красная обводка поля и текст под ним. */
+.invalid,
+.invalid:focus,
+.box.invalid:focus-within {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px var(--danger);
+}
+
+.fieldError {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.result {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.segments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.segment {
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.segmentOn {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.macros {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.small {
+  padding: 0 6px;
+  text-align: center;
+}
+
+.catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.catalogValues {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.save,
+.delete,
+.deleteSoft {
+  min-height: 52px;
+  border-radius: 16px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.save {
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.delete {
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+}
+
+.deleteSoft {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+}
+
+.save:disabled,
+.delete:disabled,
+.deleteSoft:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

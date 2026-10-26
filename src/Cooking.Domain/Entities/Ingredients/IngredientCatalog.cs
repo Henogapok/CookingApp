@@ -20,8 +20,6 @@ public class IngredientCatalog : BaseEntity
     /// </summary>
     public decimal? PieceWeight { get; set; }
 
-    /// <summary>Цена за 100 базовых единиц, ₸. 0 — неизвестна.</summary>
-    public decimal PricePer100g { get; set; }
     public decimal CaloriesPer100g { get; set; }
     public decimal ProteinPer100g { get; set; }
     public decimal FatPer100g { get; set; }

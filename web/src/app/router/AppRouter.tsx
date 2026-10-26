@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { createBrowserRouter, Navigate, Outlet, RouterProvider, ScrollRestoration } from 'react-router';
 import { useAuth } from 'react-oidc-context';
+import { ProductFormPage } from '@/pages/product-form';
+import { ProductsPage } from '@/pages/products';
 import { RecipePage } from '@/pages/recipe';
 import { RecipeListPage } from '@/pages/recipe-list';
 import { routes } from '@/shared/config';
@@ -37,6 +39,14 @@ function RecipeRoute() {
   return <RecipePage {...useCurrentUser()} />;
 }
 
+function ProductsRoute() {
+  return <ProductsPage {...useCurrentUser()} />;
+}
+
+function ProductFormRoute() {
+  return <ProductFormPage {...useCurrentUser()} />;
+}
+
 function createRouter() {
   return createBrowserRouter([
     {
@@ -44,6 +54,9 @@ function createRouter() {
       children: [
         { path: routes.recipeList, element: <RecipeListRoute /> },
         { path: routes.recipe(':id'), element: <RecipeRoute /> },
+        { path: routes.products, element: <ProductsRoute /> },
+        { path: routes.productCreate, element: <ProductFormRoute /> },
+        { path: routes.productEdit(':id'), element: <ProductFormRoute /> },
         // Неизвестный адрес (и /auth/callback после входа) — на список.
         { path: '*', element: <Navigate to={routes.recipeList} replace /> },
       ],

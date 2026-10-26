@@ -1,5 +1,5 @@
 import { useCollapseOnScroll } from '@/shared/lib';
-import { BackButton } from './BackButton';
+import { BackButton } from '@/shared/ui';
 import styles from './MobileRecipeBar.module.css';
 
 interface MobileRecipeBarProps {
