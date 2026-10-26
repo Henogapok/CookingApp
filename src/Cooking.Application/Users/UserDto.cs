@@ -6,4 +6,5 @@ public record UserDto(
     string FirstName,
     string? LastName,
     Guid? FamilyId,
-    string? FamilyName);
+    string? FamilyName,
+    string? Theme);

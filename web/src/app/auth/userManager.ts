@@ -1,5 +1,6 @@
 import { ErrorResponse, UserManager, type User } from 'oidc-client-ts';
 import { configureApiClient } from '@/shared/api';
+import { markThemeSynced } from '@/shared/lib';
 import { queryClient } from '../query/queryClient';
 import { authSettings } from './authSettings';
 
@@ -48,6 +49,10 @@ export function connectApiClientToAuth() {
     onUnauthorized: () => void renewUser(),
   });
 
-  // Пользователь вышел — выбрасываем кэш ответов, чтобы следующий вошедший не увидел чужие рецепты.
-  userManager.events.addUserUnloaded(() => queryClient.clear());
+  // Пользователь вышел — выбрасываем кэш ответов, чтобы следующий вошедший не увидел чужие рецепты,
+  // и забываем его неотправленный выбор темы, чтобы он не ушёл в профиль следующего.
+  userManager.events.addUserUnloaded(() => {
+    queryClient.clear();
+    markThemeSynced();
+  });
 }

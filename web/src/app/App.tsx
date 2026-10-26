@@ -3,6 +3,7 @@ import { useAuth } from 'react-oidc-context';
 import { SignInPage } from '@/pages/sign-in';
 import { renewUser } from './auth/userManager';
 import { AppRouter } from './router/AppRouter';
+import { ThemeSync } from './theme/ThemeSync';
 import styles from './App.module.css';
 
 /** Корневой компонент: не вошёл — экран входа, вошёл — экраны приложения (роутер). */
@@ -36,5 +37,10 @@ export function App() {
     );
   }
 
-  return <AppRouter />;
+  return (
+    <>
+      <ThemeSync />
+      <AppRouter />
+    </>
+  );
 }

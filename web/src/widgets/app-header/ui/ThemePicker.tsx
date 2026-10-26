@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { autoThemes, setThemeChoice, themes, useThemeChoice, type ThemeChoice, type ThemeId } from '@/shared/lib';
+import { autoThemes, chooseTheme, themes, useThemeChoice, type ThemeChoice, type ThemeId } from '@/shared/lib';
 import styles from './ThemePicker.module.css';
 
 const themeNames = Object.fromEntries(themes.map((theme) => [theme.id, theme.name])) as Record<ThemeId, string>;
@@ -32,7 +32,7 @@ function Option({ value, selected, title, subtitle, children }: OptionProps) {
       type="button"
       className={selected ? `${styles.option} ${styles.selected}` : styles.option}
       aria-pressed={selected}
-      onClick={() => setThemeChoice(value)}
+      onClick={() => chooseTheme(value)}
     >
       <span className={styles.preview} aria-hidden="true">
         {children}

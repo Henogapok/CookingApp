@@ -12,4 +12,7 @@ public interface IUserRepositoryService
     Task<Result<UserDto>> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<Result<UserDto>> GetByTelegramIdAsync(long telegramId, CancellationToken cancellationToken);
     Task<Result<List<UserDto>>> GetAllAsync(CancellationToken cancellationToken);
+
+    /// <summary>Сохраняет выбранную в PWA тему (см. <see cref="UserThemeRules"/>).</summary>
+    Task<Result> SetThemeAsync(Guid userId, string theme, CancellationToken cancellationToken);
 }
